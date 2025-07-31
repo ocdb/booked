@@ -1,5 +1,3 @@
-# bash-completions/_booked
-
 _BOOKED_LANGUAGES=(
 	"English"
 	"Afrikaans"

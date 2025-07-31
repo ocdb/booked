@@ -1,9 +1,5 @@
 #compdef booked
 
-#
-# ZDOTDIR/completion/_booked
-#
-
 _languages=(
 	"English"
 	"Afrikaans"
