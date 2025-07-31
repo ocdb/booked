@@ -1,0 +1,4478 @@
+#!/bin/bash
+
+# booked
+#
+# Copyright (C) 2025 ocdb
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+BOOKED_NAME="${0##*/}"
+BOOKED_DATA="${BOOKED_DATA:-${XDG_DATA_HOME:-${HOME}/.local/share}/${BOOKED_NAME}}"
+BOOKED_DB="${BOOKED_DATA}/${BOOKED_NAME}.db"
+BOOKED_RAINBOW="${BOOKED_RAINBOW:-1}"
+BOOKED_DELIMITER="${BOOKED_DELIMITER:-" / "}"
+BOOKED_SEPARATOR="${BOOKED_SEPARATOR:-"---"}"
+BOOKED_OWNED_INDICATOR="${BOOKED_OWNED_INDICATOR:-"+"}"
+BOOKED_READ_INDICATOR="${BOOKED_READ_INDICATOR:-"+"}"
+BOOKED_EMPTY_INDICATOR="${BOOKED_EMPTY_INDICATOR:-"-"}"
+
+BOOKED_HELP_GENERAL_MESSAGE="Use \"${BOOKED_NAME} help\" for more information."
+BOOKED_HELP_COMMAND_MESSAGE="Use \"${BOOKED_NAME} %s help\" for more information."
+BOOKED_HELP_COMMAND_DESCRIPTION="Show this help message"
+
+BOOKED_CURRENT_YEAR="$(command date "+%Y")"
+BOOKED_CURRENT_TIMESTAMP="$(command date "+%s")"
+
+BOOKED_MSG_ERROR="\e[31m[ERROR]\e[0m"
+BOOKED_MSG_ADDED="\e[32m[ADDED]\e[0m"
+BOOKED_MSG_UPDATED="\e[32m[UPDATED]\e[0m"
+BOOKED_MSG_DELETED="\e[31m[DELETED]\e[0m"
+BOOKED_MSG_DB="\e[32m[DB]\e[0m"
+
+BOOKED_BOOK_ADDED="${BOOKED_MSG_ADDED} Book ID:"
+BOOKED_BOOK_DELETED="${BOOKED_MSG_DELETED} Book ID:"
+BOOKED_BOOK_NOT_FOUND="${BOOKED_MSG_ERROR} Book not found. ID:"
+BOOKED_BOOK_UPDATED="${BOOKED_MSG_UPDATED} Book ID:"
+
+BOOKED_BOOKMARK_ADDED="${BOOKED_MSG_ADDED} Bookmark ID:"
+BOOKED_BOOKMARK_DELETED="${BOOKED_MSG_DELETED} Bookmark ID:"
+BOOKED_BOOKMARK_NOT_FOUND="${BOOKED_MSG_ERROR} Bookmark not found. ID:"
+BOOKED_BOOKMARK_UPDATED="${BOOKED_MSG_UPDATED} Bookmark ID:"
+
+BOOKED_TEXT_ADDED="${BOOKED_MSG_ADDED} Text ID:"
+BOOKED_TEXT_DELETED="${BOOKED_MSG_DELETED} Text ID:"
+BOOKED_TEXT_NOT_FOUND="${BOOKED_MSG_ERROR} Text not found. ID:"
+BOOKED_TEXT_UPDATED="${BOOKED_MSG_UPDATED} Text ID:"
+
+BOOKED_TEXT_NOTE_ADDED="${BOOKED_MSG_ADDED} Text Note ID:"
+BOOKED_TEXT_NOTE_DELETED="${BOOKED_MSG_DELETED} Text Note ID:"
+BOOKED_TEXT_NOTE_NOT_FOUND="${BOOKED_MSG_ERROR} Text Note not found. ID:"
+BOOKED_TEXT_NOTE_UPDATED="${BOOKED_MSG_UPDATED} Text Note ID:"
+
+BOOKED_QUOTATION_ADDED="${BOOKED_MSG_ADDED} Quotation ID:"
+BOOKED_QUOTATION_DELETED="${BOOKED_MSG_DELETED} Quotation ID:"
+BOOKED_QUOTATION_NOT_FOUND="${BOOKED_MSG_ERROR} Quotation not found. ID:"
+BOOKED_QUOTATION_UPDATED="${BOOKED_MSG_UPDATED} Quotation ID:"
+
+BOOKED_WORD_ADDED="${BOOKED_MSG_ADDED} Word ID:"
+BOOKED_WORD_DELETED="${BOOKED_MSG_DELETED} Word ID:"
+BOOKED_WORD_NOT_FOUND="${BOOKED_MSG_ERROR} Word not found. ID:"
+BOOKED_WORD_UPDATED="${BOOKED_MSG_UPDATED} Word ID:"
+
+BOOKED_DATA_CREATE_FAILED="${BOOKED_MSG_ERROR} Failed to create data directory:"
+BOOKED_DB_ERROR="${BOOKED_MSG_ERROR} Database operation failed."
+BOOKED_DB_INITIALIZED="${BOOKED_MSG_DB} Database initialized."
+BOOKED_DB_INITIALIZATION_FAILED="${BOOKED_MSG_ERROR} Database schema incomplete. Initialization failed."
+
+BOOKED_DB_EXPORT="${BOOKED_MSG_DB} Exported to:"
+BOOKED_DB_EXPORT_FAILED="${BOOKED_MSG_ERROR} Export failed."
+BOOKED_DB_EXPORT_INVALID="${BOOKED_MSG_ERROR} Unsupported export format:"
+BOOKED_DB_EXPORT_PATH_CREATE_FAILED="${BOOKED_MSG_ERROR} Failed to create export directory."
+BOOKED_DB_IMPORT="${BOOKED_MSG_DB} Database imported."
+BOOKED_DB_IMPORT_FAILED="${BOOKED_MSG_ERROR} Import failed."
+BOOKED_DB_IMPORT_INVALID="${BOOKED_MSG_ERROR} Unsupported import format."
+BOOKED_DB_IMPORT_NOT_FOUND="${BOOKED_MSG_ERROR} Import file not found."
+BOOKED_DB_IMPORT_SQLITE="(SQLite)"
+BOOKED_DB_IMPORT_SQL="(SQL)"
+BOOKED_DB_FORMATS="Supported formats: sh, sql, sqlite, db (default)"
+BOOKED_DB_IMPORT_FORMATS="Supported formats: sql, sqlite, db"
+
+BOOKED_COMMAND_NOT_FOUND="${BOOKED_MSG_ERROR} Command not found:"
+BOOKED_SUBCOMMAND_NOT_FOUND="${BOOKED_MSG_ERROR} Subcommand not found:"
+BOOKED_PARAMETER_INVALID="${BOOKED_MSG_ERROR} Invalid parameter:"
+BOOKED_PARAMETER_MISSING_REQUIRED="${BOOKED_MSG_ERROR} Missing required parameter:"
+
+BOOKED_BOOK_ID_REQUIRED="Book ID is required."
+BOOKED_BOOK_REQUIRED="--book is required."
+BOOKED_BOOKMARK_ID_REQUIRED="Bookmark ID is required."
+BOOKED_TEXT_ID_REQUIRED="Text ID is required."
+BOOKED_TEXT_REQUIRED="--text is required."
+BOOKED_TEXT_NOTE_ID_REQUIRED="Text Note ID is required."
+BOOKED_QUOTATION_ID_REQUIRED="Quotation ID is required."
+BOOKED_QUOTATION_REQUIRED="--quotation is required."
+BOOKED_WORD_ID_REQUIRED="Word ID is required."
+BOOKED_WORD_REQUIRED="--word is required."
+BOOKED_FILE_PATH_REQUIRED="File path is required."
+BOOKED_TITLE_REQUIRED="--title is required."
+BOOKED_AUTHOR_REQUIRED="--author is required."
+
+BOOKED_ISBN10_INVALID="ISBN-10 format is invalid."
+BOOKED_ISBN13_INVALID="ISBN-13 format is invalid."
+BOOKED_PAGE_INVALID="Page must be a number above 0."
+BOOKED_YEAR_INVALID="Year must be a number between 0 and ${BOOKED_CURRENT_YEAR}."
+
+BOOKED_SEARCH_ISBN10_CHARACTER_LIMIT="ISBN search term cannot exceed 13 characters."
+BOOKED_SEARCH_ISBN10_CHARACTER_RESTRICTION="ISBN can only contain digits, X, and hyphens."
+BOOKED_SEARCH_ISBN10_CHARACTER_X_INVALID="In a 10-digit ISBN, X can only appear as the last character."
+BOOKED_SEARCH_ISBN10_CHARACTER_X_LAST="In ISBN-10 searches, X can only appear as the last character."
+BOOKED_SEARCH_ISBN10_CHARACTER_X_LENGTH="X is not valid in ISBN search terms longer than 10 characters."
+BOOKED_SEARCH_ISBN13_CHARACTER_LIMIT="ISBN-13 search term cannot exceed 13 characters."
+BOOKED_SEARCH_ISBN13_CHARACTER_RESTRICTION="ISBN-13 can only contain digits and hyphens."
+
+BOOKED_SEARCH_BOOKS_NO_RESULTS="No books found matching your search criteria."
+BOOKED_SEARCH_BOOKMARKS_NO_RESULTS="No bookmarks found matching your search criteria."
+BOOKED_SEARCH_TEXTS_NO_RESULTS="No texts found matching your search criteria."
+BOOKED_SEARCH_TEXT_NOTES_NO_RESULTS="No text notes found matching your search criteria."
+BOOKED_SEARCH_QUOTATIONS_NO_RESULTS="No quotations found matching your search criteria."
+BOOKED_SEARCH_WORDS_NO_RESULTS="No words found matching your search criteria."
+
+BOOKED_BOOKS_NO_RESULTS="No books found."
+BOOKED_BOOKMARKS_NO_RESULTS="No bookmarks found."
+BOOKED_TEXTS_NO_RESULTS="No texts found."
+BOOKED_TEXT_NOTES_NO_RESULTS="No text notes found."
+BOOKED_QUOTATIONS_NO_RESULTS="No quotations found."
+BOOKED_WORDS_NO_RESULTS="No words found."
+
+BOOKED_BOOK_BOOKMARKS_NO_RESULTS="No bookmarks found for this book."
+
+BOOKED_TAGS_BOOKS_NO_RESULTS="No tags found for books."
+BOOKED_TAGS_BOOKMARKS_NO_RESULTS="No tags found for bookmarks."
+BOOKED_TAGS_TEXTS_NO_RESULTS="No tags found for texts."
+BOOKED_TAGS_TEXT_NOTES_NO_RESULTS="No tags found for text notes."
+BOOKED_TAGS_QUOTATIONS_NO_RESULTS="No tags found for quotations."
+BOOKED_TAGS_WORDS_NO_RESULTS="No tags found for words."
+
+BOOKED_TAGS_USAGE="Usage: ${BOOKED_NAME} tags <books|bookmarks|texts|text-notes|quotations|words>"
+BOOKED_EXPORT_USAGE="Usage: ${BOOKED_NAME} export [format]"
+
+BOOKED_HEADER_BOOKS="\e[1m[Books]\e[0m"
+BOOKED_HEADER_BOOKS_INFO="${BOOKED_HEADER_BOOKS} \e[1mInformation\e[0m"
+BOOKED_HEADER_BOOKS_SEARCH="${BOOKED_HEADER_BOOKS} \e[1mSearch\e[0m"
+BOOKED_HEADER_BOOKMARKS="\e[1m[Bookmarks]\e[0m"
+BOOKED_HEADER_BOOKMARKS_INFO="${BOOKED_HEADER_BOOKMARKS} \e[1mInformation\e[0m"
+BOOKED_HEADER_BOOKMARKS_SEARCH="${BOOKED_HEADER_BOOKMARKS} \e[1mSearch\e[0m"
+BOOKED_HEADER_TEXTS="\e[1m[Texts]\e[0m"
+BOOKED_HEADER_TEXTS_INFO="${BOOKED_HEADER_TEXTS} \e[1mInformation\e[0m"
+BOOKED_HEADER_TEXTS_SEARCH="${BOOKED_HEADER_TEXTS} \e[1mSearch\e[0m"
+BOOKED_HEADER_TEXT_NOTES="\e[1m[Text Notes]\e[0m"
+BOOKED_HEADER_TEXT_NOTES_INFO="${BOOKED_HEADER_TEXT_NOTES} \e[1mInformation\e[0m"
+BOOKED_HEADER_TEXT_NOTES_SEARCH="${BOOKED_HEADER_TEXT_NOTES} \e[1mSearch\e[0m"
+BOOKED_HEADER_QUOTATIONS="\e[1m[Quotations]\e[0m"
+BOOKED_HEADER_QUOTATIONS_INFO="${BOOKED_HEADER_QUOTATIONS} \e[1mInformation\e[0m"
+BOOKED_HEADER_QUOTATIONS_SEARCH="${BOOKED_HEADER_QUOTATIONS} \e[1mSearch\e[0m"
+BOOKED_HEADER_WORDS="\e[1m[Words]\e[0m"
+BOOKED_HEADER_WORDS_INFO="${BOOKED_HEADER_WORDS} \e[1mInformation\e[0m"
+BOOKED_HEADER_WORDS_SEARCH="${BOOKED_HEADER_WORDS} \e[1mSearch\e[0m"
+BOOKED_HEADER_TAGS="\e[1m[Tags]\e[0m"
+BOOKED_HEADER_TAGS_BOOKS="${BOOKED_HEADER_TAGS} \e[1mBooks\e[0m"
+BOOKED_HEADER_TAGS_BOOKMARKS="${BOOKED_HEADER_TAGS} \e[1mBookmarks\e[0m"
+BOOKED_HEADER_TAGS_TEXTS="${BOOKED_HEADER_TAGS} \e[1mTexts\e[0m"
+BOOKED_HEADER_TAGS_TEXT_NOTES="${BOOKED_HEADER_TAGS} \e[1mText Notes\e[0m"
+BOOKED_HEADER_TAGS_QUOTATIONS="${BOOKED_HEADER_TAGS} \e[1mQuotations\e[0m"
+BOOKED_HEADER_TAGS_WORDS="${BOOKED_HEADER_TAGS} \e[1mWords\e[0m"
+
+readonly SQL_CREATE_SCHEMA="
+PRAGMA foreign_keys = ON;
+
+	CREATE TABLE IF NOT EXISTS books (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		title TEXT NOT NULL CHECK(length(trim(title)) > 0),
+		edition TEXT,
+		year INTEGER CHECK(year IS NULL OR (year BETWEEN 0 AND 9999)),
+		isbn10 TEXT CHECK(length(isbn10) = 0 OR length(isbn10) = 10 OR length(isbn10) = 13),
+		isbn13 TEXT CHECK(length(isbn13) = 0 OR length(isbn13) = 13),
+		owned BOOLEAN NOT NULL DEFAULT 0 CHECK(owned IN (0, 1)),
+		read BOOLEAN NOT NULL DEFAULT 0 CHECK(read IN (0, 1))
+	);
+
+	CREATE TABLE IF NOT EXISTS bookmarks (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		book_id INTEGER NOT NULL,
+		chapter TEXT,
+		page TEXT,
+		description TEXT,
+		FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
+	);
+
+	CREATE TABLE IF NOT EXISTS texts (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		title TEXT NOT NULL CHECK(length(trim(title)) > 0),
+		author TEXT NOT NULL CHECK(length(trim(author)) > 0),
+		year INTEGER CHECK(year IS NULL OR (year BETWEEN 0 AND 9999)),
+		url TEXT
+	);
+
+	CREATE TABLE IF NOT EXISTS text_notes (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		text_id INTEGER NOT NULL,
+		section TEXT,
+		page TEXT,
+		description TEXT,
+		FOREIGN KEY(text_id) REFERENCES texts(id) ON DELETE CASCADE
+	);
+
+	CREATE TABLE IF NOT EXISTS quotations (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		quotation TEXT NOT NULL CHECK(length(trim(quotation)) > 0),
+		author TEXT NOT NULL CHECK(length(trim(author)) > 0),
+		year INTEGER CHECK(year IS NULL OR (year BETWEEN 0 AND 9999)),
+		description TEXT
+	);
+
+	CREATE TABLE IF NOT EXISTS words (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		word TEXT NOT NULL CHECK(length(trim(word)) > 0),
+		language TEXT,
+		description TEXT
+	);
+
+	CREATE TABLE IF NOT EXISTS tags (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL UNIQUE CHECK(name = lower(trim(name)) AND length(name) > 0)
+	);
+
+	CREATE TABLE IF NOT EXISTS book_tags (
+		book_id INTEGER NOT NULL,
+		tag_id INTEGER NOT NULL,
+		PRIMARY KEY (book_id, tag_id),
+		FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+		FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+	);
+
+	CREATE TABLE IF NOT EXISTS bookmark_tags (
+		bookmark_id INTEGER NOT NULL,
+		tag_id INTEGER NOT NULL,
+		PRIMARY KEY (bookmark_id, tag_id),
+		FOREIGN KEY (bookmark_id) REFERENCES bookmarks(id) ON DELETE CASCADE,
+		FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+	);
+
+	CREATE TABLE IF NOT EXISTS text_tags (
+		text_id INTEGER NOT NULL,
+		tag_id INTEGER NOT NULL,
+		PRIMARY KEY (text_id, tag_id),
+		FOREIGN KEY (text_id) REFERENCES texts(id) ON DELETE CASCADE,
+		FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+	);
+
+	CREATE TABLE IF NOT EXISTS text_note_tags (
+		text_note_id INTEGER NOT NULL,
+		tag_id INTEGER NOT NULL,
+		PRIMARY KEY (text_note_id, tag_id),
+		FOREIGN KEY (text_note_id) REFERENCES text_notes(id) ON DELETE CASCADE,
+		FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+	);
+
+	CREATE TABLE IF NOT EXISTS quotation_tags (
+		quotation_id INTEGER NOT NULL,
+		tag_id INTEGER NOT NULL,
+		PRIMARY KEY (quotation_id, tag_id),
+		FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE,
+		FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+	);
+
+	CREATE TABLE IF NOT EXISTS word_tags (
+		word_id INTEGER NOT NULL,
+		tag_id INTEGER NOT NULL,
+		PRIMARY KEY (word_id, tag_id),
+		FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE,
+		FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+	);
+
+	CREATE INDEX idx_books_title ON books(title);
+	CREATE INDEX idx_books_edition ON books(edition);
+	CREATE INDEX idx_books_year ON books(year);
+	CREATE INDEX idx_books_isbn10 ON books(isbn10);
+	CREATE INDEX idx_books_isbn13 ON books(isbn13);
+	CREATE INDEX idx_books_owned ON books(owned);
+	CREATE INDEX idx_books_read ON books(read);
+
+	CREATE INDEX idx_bookmarks_book_id ON bookmarks(book_id);
+	CREATE INDEX idx_bookmarks_chapter ON bookmarks(chapter);
+	CREATE INDEX idx_bookmarks_page ON bookmarks(page);
+	CREATE INDEX idx_bookmarks_description ON bookmarks(description);
+
+	CREATE INDEX idx_texts_title ON texts(title);
+	CREATE INDEX idx_texts_author ON texts(author);
+	CREATE INDEX idx_texts_year ON texts(year);
+	CREATE INDEX idx_texts_url ON texts(url);
+
+	CREATE INDEX idx_text_notes_text_id ON text_notes(text_id);
+	CREATE INDEX idx_text_notes_section ON text_notes(section);
+	CREATE INDEX idx_text_notes_page ON text_notes(page);
+	CREATE INDEX idx_text_notes_description ON text_notes(description);
+
+	CREATE INDEX idx_quotations_quotation ON quotations(quotation);
+	CREATE INDEX idx_quotations_author ON quotations(author);
+	CREATE INDEX idx_quotations_year ON quotations(year);
+	CREATE INDEX idx_quotations_description ON quotations(description);
+
+	CREATE INDEX idx_words_word ON words(word);
+	CREATE INDEX idx_words_language ON words(language);
+	CREATE INDEX idx_words_description ON words(description);
+
+	CREATE INDEX idx_tags_name ON tags(name);
+
+	CREATE INDEX idx_book_tags_book_id ON book_tags(book_id);
+	CREATE INDEX idx_book_tags_tag_id ON book_tags(tag_id);
+	CREATE INDEX idx_bookmark_tags_bookmark_id ON bookmark_tags(bookmark_id);
+	CREATE INDEX idx_bookmark_tags_tag_id ON bookmark_tags(tag_id);
+	CREATE INDEX idx_text_tags_text_id ON text_tags(text_id);
+	CREATE INDEX idx_text_tags_tag_id ON text_tags(tag_id);
+	CREATE INDEX idx_text_note_tags_text_note_id ON text_note_tags(text_note_id);
+	CREATE INDEX idx_text_note_tags_tag_id ON text_note_tags(tag_id);
+	CREATE INDEX idx_quotation_tags_quotation_id ON quotation_tags(quotation_id);
+	CREATE INDEX idx_quotation_tags_tag_id ON quotation_tags(tag_id);
+	CREATE INDEX idx_word_tags_word_id ON word_tags(word_id);
+	CREATE INDEX idx_word_tags_tag_id ON word_tags(tag_id);
+"
+
+readonly SQL_CHECK_TABLE_EXISTS="
+	SELECT count(*) FROM sqlite_master
+	WHERE type='table' AND name='%s';
+"
+
+readonly SQL_BOOKS_LIST="
+	SELECT
+		books.id,
+		books.title,
+		books.edition,
+		books.year,
+		books.isbn10,
+		books.isbn13,
+		CASE books.owned
+			WHEN 0 THEN ''
+			WHEN 1 THEN '${BOOKED_OWNED_INDICATOR}'
+		END AS owned,
+		CASE books.read
+			WHEN 0 THEN ''
+			WHEN 1 THEN '${BOOKED_READ_INDICATOR}'
+		END AS read,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN book_tags ON tags.id = book_tags.tag_id
+			WHERE book_tags.book_id = books.id
+			ORDER BY tags.name)
+		) as tags
+	FROM books
+	ORDER BY books.id
+"
+
+readonly SQL_BOOKS_SEARCH_BASE="
+	SELECT
+		books.id,
+		books.title,
+		books.edition,
+		books.year,
+		books.isbn10,
+		books.isbn13,
+		CASE books.owned
+			WHEN 0 THEN ''
+			WHEN 1 THEN '${BOOKED_OWNED_INDICATOR}'
+		END AS owned,
+		CASE books.read
+			WHEN 0 THEN ''
+			WHEN 1 THEN '${BOOKED_READ_INDICATOR}'
+		END AS read,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN book_tags ON tags.id = book_tags.tag_id
+			WHERE book_tags.book_id = books.id
+			ORDER BY tags.name)
+		) as tags
+	FROM books
+"
+
+readonly SQL_BOOK_INFO="
+	SELECT
+		id,
+		title,
+		edition,
+		year,
+		isbn10,
+		isbn13,
+		CASE books.owned
+			WHEN 0 THEN ''
+			WHEN 1 THEN '✓'
+		END AS owned,
+		CASE books.read
+			WHEN 0 THEN ''
+			WHEN 1 THEN '✓'
+		END AS read,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN book_tags ON tags.id = book_tags.tag_id
+			WHERE book_tags.book_id = books.id
+			ORDER BY tags.name)
+		) as tags
+	FROM books
+	WHERE id = %s
+"
+
+readonly SQL_BOOK_EXISTS="
+	SELECT COUNT(*) FROM books WHERE id = %s
+"
+
+readonly SQL_BOOK_ADD="
+	INSERT INTO books (title, edition, year, isbn10, isbn13, owned, read)
+	VALUES ('%s', %s, %s, %s, %s, %s, %s);
+	SELECT last_insert_rowid();
+"
+
+readonly SQL_BOOK_UPDATE="
+	UPDATE books SET %s WHERE id = %s
+"
+
+readonly SQL_BOOK_DELETE="
+	PRAGMA foreign_keys = ON;
+	BEGIN;
+		DELETE FROM books WHERE id = %s;
+		DELETE FROM tags
+			WHERE id NOT IN (SELECT tag_id FROM book_tags)
+			AND id NOT IN (SELECT tag_id FROM bookmark_tags)
+			AND id NOT IN (SELECT tag_id FROM text_tags)
+			AND id NOT IN (SELECT tag_id FROM text_note_tags)
+			AND id NOT IN (SELECT tag_id FROM quotation_tags)
+			AND id NOT IN (SELECT tag_id FROM word_tags);
+	COMMIT;
+"
+
+readonly SQL_BOOKMARKS_LIST="
+	SELECT
+		bookmarks.id,
+		books.id as book,
+		books.title,
+		bookmarks.chapter,
+		bookmarks.page,
+		bookmarks.description,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN bookmark_tags ON tags.id = bookmark_tags.tag_id
+			WHERE bookmark_tags.bookmark_id = bookmarks.id
+			ORDER BY tags.name)
+		) as tags
+	FROM bookmarks
+	JOIN books ON bookmarks.book_id = books.id
+	ORDER BY bookmarks.id
+"
+
+readonly SQL_BOOKMARKS_SEARCH_BASE="
+	SELECT
+		bookmarks.id,
+		books.id as book,
+		books.title,
+		bookmarks.chapter,
+		bookmarks.page,
+		bookmarks.description,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN bookmark_tags ON tags.id = bookmark_tags.tag_id
+			WHERE bookmark_tags.bookmark_id = bookmarks.id
+			ORDER BY tags.name)
+		) as tags
+	FROM bookmarks
+	JOIN books ON bookmarks.book_id = books.id
+"
+
+readonly SQL_BOOKMARK_INFO="
+	SELECT
+		bookmarks.id,
+		books.id as book,
+		books.title,
+		bookmarks.chapter,
+		bookmarks.page,
+		bookmarks.description,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN bookmark_tags ON tags.id = bookmark_tags.tag_id
+			WHERE bookmark_tags.bookmark_id = bookmarks.id
+			ORDER BY tags.name)
+		) as tags
+	FROM bookmarks
+	JOIN books ON bookmarks.book_id = books.id
+	WHERE bookmarks.id = %s
+"
+
+readonly SQL_BOOK_BOOKMARKS="
+	SELECT
+		id,
+		chapter,
+		page,
+		description,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN bookmark_tags ON tags.id = bookmark_tags.tag_id
+			WHERE bookmark_tags.bookmark_id = bookmarks.id
+			ORDER BY tags.name)
+		) as tags
+	FROM bookmarks
+	WHERE book_id = %s
+	ORDER BY id
+"
+
+readonly SQL_BOOKMARK_EXISTS="
+	SELECT COUNT(*) FROM bookmarks WHERE id = %s
+"
+
+readonly SQL_BOOKMARK_ADD="
+	INSERT INTO bookmarks (book_id, chapter, page, description)
+	VALUES (%s, %s, %s, %s);
+	SELECT last_insert_rowid();
+"
+
+readonly SQL_BOOKMARK_UPDATE="
+	UPDATE bookmarks SET %s WHERE id = %s
+"
+
+readonly SQL_BOOKMARK_DELETE="
+	PRAGMA foreign_keys = ON;
+	BEGIN;
+		DELETE FROM bookmarks WHERE id = %s;
+		DELETE FROM tags
+			WHERE id NOT IN (SELECT tag_id FROM book_tags)
+			AND id NOT IN (SELECT tag_id FROM bookmark_tags)
+			AND id NOT IN (SELECT tag_id FROM text_tags)
+			AND id NOT IN (SELECT tag_id FROM text_note_tags)
+			AND id NOT IN (SELECT tag_id FROM quotation_tags)
+			AND id NOT IN (SELECT tag_id FROM word_tags);
+	COMMIT;
+"
+
+readonly SQL_TEXTS_LIST="
+	SELECT
+		texts.*,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN text_tags ON tags.id = text_tags.tag_id
+			WHERE text_tags.text_id = texts.id
+			ORDER BY tags.name)
+		) as tags
+	FROM texts
+	ORDER BY texts.id
+"
+
+readonly SQL_TEXTS_SEARCH_BASE="
+	SELECT
+		texts.*,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN text_tags ON tags.id = text_tags.tag_id
+			WHERE text_tags.text_id = texts.id
+			ORDER BY tags.name)
+		) as tags
+	FROM texts
+	WHERE %s
+	ORDER BY texts.id
+"
+
+readonly SQL_TEXT_INFO="
+	SELECT
+		texts.*,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN text_tags ON tags.id = text_tags.tag_id
+			WHERE text_tags.text_id = texts.id
+			ORDER BY tags.name)
+		) as tags
+	FROM texts
+	WHERE texts.id = %s
+"
+
+readonly SQL_TEXT_EXISTS="
+	SELECT COUNT(*)
+	FROM texts
+	WHERE id = %s
+"
+
+readonly SQL_TEXT_ADD="
+	INSERT INTO texts (title, author, year, url)
+	VALUES ('%s', '%s', %s, %s);
+	SELECT last_insert_rowid();
+"
+
+readonly SQL_TEXT_UPDATE="
+	UPDATE texts
+	SET title = '%s', author = '%s', year = %s, url = %s
+	WHERE id = %s
+"
+
+readonly SQL_TEXT_DELETE="
+	PRAGMA foreign_keys = ON;
+	BEGIN;
+		DELETE FROM texts WHERE id = %s;
+		DELETE FROM tags
+			WHERE id NOT IN (SELECT tag_id FROM book_tags)
+			AND id NOT IN (SELECT tag_id FROM bookmark_tags)
+			AND id NOT IN (SELECT tag_id FROM text_tags)
+			AND id NOT IN (SELECT tag_id FROM text_note_tags)
+			AND id NOT IN (SELECT tag_id FROM quotation_tags)
+			AND id NOT IN (SELECT tag_id FROM word_tags);
+	COMMIT;
+"
+
+readonly SQL_TEXT_NOTES_LIST="
+	SELECT
+		text_notes.id,
+		text_notes.text_id as text,
+		texts.title,
+		text_notes.section,
+		text_notes.page,
+		text_notes.description,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN text_note_tags ON tags.id = text_note_tags.tag_id
+			WHERE text_note_tags.text_note_id = text_notes.id
+			ORDER BY tags.name)
+		) as tags
+	FROM text_notes
+	JOIN texts ON text_notes.text_id = texts.id
+	ORDER BY text_notes.id
+"
+
+readonly SQL_TEXT_NOTES_SEARCH_BASE="
+	SELECT
+		text_notes.id,
+		text_notes.text_id as text,
+		texts.title,
+		text_notes.section,
+		text_notes.page,
+		text_notes.description,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN text_note_tags ON tags.id = text_note_tags.tag_id
+			WHERE text_note_tags.text_note_id = text_notes.id
+			ORDER BY tags.name)
+		) as tags
+	FROM text_notes
+	JOIN texts ON text_notes.text_id = texts.id
+	WHERE %s
+	ORDER BY text_notes.id
+"
+
+readonly SQL_TEXT_NOTE_INFO="
+	SELECT
+		text_notes.id,
+		text_notes.text_id as text,
+		texts.title,
+		text_notes.section,
+		text_notes.page,
+		text_notes.description,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN text_note_tags ON tags.id = text_note_tags.tag_id
+			WHERE text_note_tags.text_note_id = text_notes.id
+			ORDER BY tags.name)
+		) as tags
+	FROM text_notes
+	JOIN texts ON text_notes.text_id = texts.id
+	WHERE text_notes.id = %s
+"
+
+readonly SQL_TEXT_TEXT_NOTES="
+	SELECT
+		text_notes.id,
+		text_notes.text_id as text,
+		texts.title,
+		text_notes.section,
+		text_notes.page,
+		text_notes.description,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN text_note_tags ON tags.id = text_note_tags.tag_id
+			WHERE text_note_tags.text_note_id = text_notes.id
+			ORDER BY tags.name)
+		) as tags
+	FROM text_notes
+	JOIN texts ON text_notes.text_id = texts.id
+	WHERE text_notes.text_id = %s
+	ORDER BY text_notes.page, text_notes.id
+"
+
+readonly SQL_TEXT_NOTE_EXISTS="
+	SELECT COUNT(*)
+	FROM text_notes
+	WHERE id = %s
+"
+
+readonly SQL_TEXT_NOTE_ADD="
+	INSERT INTO text_notes (text_id, section, page, description)
+	VALUES (%s, %s, %s, %s);
+	SELECT last_insert_rowid();
+"
+
+readonly SQL_TEXT_NOTE_UPDATE="
+	UPDATE text_notes
+	SET text_id = %s, section = %s, page = %s, description = %s
+	WHERE id = %s
+"
+
+readonly SQL_TEXT_NOTE_DELETE="
+	PRAGMA foreign_keys = ON;
+	BEGIN;
+		DELETE FROM text_notes WHERE id = %s;
+		DELETE FROM tags
+			WHERE id NOT IN (SELECT tag_id FROM book_tags)
+			AND id NOT IN (SELECT tag_id FROM bookmark_tags)
+			AND id NOT IN (SELECT tag_id FROM text_tags)
+			AND id NOT IN (SELECT tag_id FROM text_note_tags)
+			AND id NOT IN (SELECT tag_id FROM quotation_tags)
+			AND id NOT IN (SELECT tag_id FROM word_tags);
+	COMMIT;
+"
+
+readonly SQL_QUOTATIONS_LIST="
+	SELECT
+		quotations.*,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN quotation_tags ON tags.id = quotation_tags.tag_id
+			WHERE quotation_tags.quotation_id = quotations.id
+			ORDER BY tags.name)
+		) as tags
+	FROM quotations
+	ORDER BY quotations.id
+"
+
+readonly SQL_QUOTATIONS_SEARCH_BASE="
+	SELECT
+		quotations.*,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN quotation_tags ON tags.id = quotation_tags.tag_id
+			WHERE quotation_tags.quotation_id = quotations.id
+			ORDER BY tags.name)
+		) as tags
+	FROM quotations
+"
+
+readonly SQL_QUOTATION_INFO="
+	SELECT
+		quotations.*,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN quotation_tags ON tags.id = quotation_tags.tag_id
+			WHERE quotation_tags.quotation_id = quotations.id
+			ORDER BY tags.name)
+		) as tags
+	FROM quotations
+	WHERE id = %s
+"
+
+readonly SQL_QUOTATION_EXISTS="
+	SELECT COUNT(*) FROM quotations WHERE id = %s
+"
+
+readonly SQL_QUOTATION_ADD="
+	INSERT INTO quotations (quotation, author, year, description)
+	VALUES ('%s', '%s', %s, %s);
+	SELECT last_insert_rowid();
+"
+
+readonly SQL_QUOTATION_UPDATE="
+	UPDATE quotations SET %s WHERE id = %s
+"
+
+readonly SQL_QUOTATION_DELETE="
+	PRAGMA foreign_keys = ON;
+	BEGIN;
+		DELETE FROM quotations WHERE id = %s;
+		DELETE FROM tags
+			WHERE id NOT IN (SELECT tag_id FROM book_tags)
+			AND id NOT IN (SELECT tag_id FROM bookmark_tags)
+			AND id NOT IN (SELECT tag_id FROM text_tags)
+			AND id NOT IN (SELECT tag_id FROM text_note_tags)
+			AND id NOT IN (SELECT tag_id FROM quotation_tags)
+			AND id NOT IN (SELECT tag_id FROM word_tags);
+	COMMIT;
+"
+
+readonly SQL_QUOTATION_RANDOM="
+	SELECT
+		quotation,
+		author,
+		CASE
+			WHEN year IS NULL THEN ''
+			ELSE year
+		END as year
+	FROM quotations
+	ORDER BY RANDOM()
+	LIMIT 1
+"
+
+readonly SQL_WORDS_LIST="
+	SELECT
+		words.*,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN word_tags ON tags.id = word_tags.tag_id
+			WHERE word_tags.word_id = words.id
+			ORDER BY tags.name)
+		) as tags
+	FROM words
+	ORDER BY words.id
+"
+
+readonly SQL_WORDS_SEARCH_BASE="
+	SELECT
+		words.*,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN word_tags ON tags.id = word_tags.tag_id
+			WHERE word_tags.word_id = words.id
+			ORDER BY tags.name)
+		) as tags
+	FROM words
+"
+
+readonly SQL_WORD_INFO="
+	SELECT
+		words.*,
+		(SELECT GROUP_CONCAT(name, ',') FROM
+			(SELECT tags.name as name
+			FROM tags
+			JOIN word_tags ON tags.id = word_tags.tag_id
+			WHERE word_tags.word_id = words.id
+			ORDER BY tags.name)
+		) as tags
+	FROM words
+	WHERE id = %s
+"
+
+readonly SQL_WORD_EXISTS="
+	SELECT COUNT(*) FROM words WHERE id = %s
+"
+
+readonly SQL_WORD_ADD="
+	INSERT INTO words (word, language, description)
+	VALUES ('%s', %s, %s);
+	SELECT last_insert_rowid();
+"
+
+readonly SQL_WORD_UPDATE="
+	UPDATE words SET %s WHERE id = %s
+"
+
+readonly SQL_WORD_DELETE="
+	PRAGMA foreign_keys = ON;
+	BEGIN;
+		DELETE FROM words WHERE id = %s;
+		DELETE FROM tags
+			WHERE id NOT IN (SELECT tag_id FROM book_tags)
+			AND id NOT IN (SELECT tag_id FROM bookmark_tags)
+			AND id NOT IN (SELECT tag_id FROM text_tags)
+			AND id NOT IN (SELECT tag_id FROM text_note_tags)
+			AND id NOT IN (SELECT tag_id FROM quotation_tags)
+			AND id NOT IN (SELECT tag_id FROM word_tags);
+	COMMIT;
+"
+
+readonly SQL_WORD_RANDOM="
+	SELECT
+		word,
+		CASE
+			WHEN language IS NULL THEN ''
+			ELSE language
+		END as language
+	FROM words
+	ORDER BY RANDOM()
+	LIMIT 1
+"
+
+readonly SQL_TAGS_BOOKS="
+	SELECT
+		tags.name,
+		COUNT(book_tags.book_id) as count
+	FROM tags
+	JOIN book_tags ON tags.id = book_tags.tag_id
+	GROUP BY tags.name
+	ORDER BY tags.name
+"
+
+readonly SQL_TAGS_BOOKMARKS="
+	SELECT
+		tags.name,
+		COUNT(bookmark_tags.bookmark_id) as count
+	FROM tags
+	JOIN bookmark_tags ON tags.id = bookmark_tags.tag_id
+	GROUP BY tags.name
+	ORDER BY tags.name
+"
+
+readonly SQL_TAGS_TEXTS="
+	SELECT
+		tags.name,
+		COUNT(text_tags.text_id) as count
+	FROM tags
+	JOIN text_tags ON tags.id = text_tags.tag_id
+	GROUP BY tags.name
+	ORDER BY tags.name
+"
+
+readonly SQL_TAGS_TEXT_NOTES="
+	SELECT
+		tags.name,
+		COUNT(text_note_tags.text_note_id) as count
+	FROM tags
+	JOIN text_note_tags ON tags.id = text_note_tags.tag_id
+	GROUP BY tags.name
+	ORDER BY tags.name
+"
+
+readonly SQL_TAGS_QUOTATIONS="
+	SELECT
+		tags.name,
+		COUNT(quotation_tags.quotation_id) as count
+	FROM tags
+	JOIN quotation_tags ON tags.id = quotation_tags.tag_id
+	GROUP BY tags.name
+	ORDER BY tags.name
+"
+
+readonly SQL_TAGS_WORDS="
+	SELECT
+		tags.name,
+		COUNT(word_tags.word_id) as count
+	FROM tags
+	JOIN word_tags ON tags.id = word_tags.tag_id
+	GROUP BY tags.name
+	ORDER BY tags.name
+"
+
+readonly SQL_TAG_GET_ID="
+	INSERT OR IGNORE INTO tags (name) VALUES ('%s');
+	SELECT id FROM tags WHERE name = '%s';
+"
+
+readonly SQL_BOOK_TAG_ADD="
+	INSERT OR IGNORE INTO book_tags (book_id, tag_id)
+	VALUES (%s, %s)
+"
+
+readonly SQL_BOOKMARK_TAG_ADD="
+	INSERT OR IGNORE INTO bookmark_tags (bookmark_id, tag_id)
+	VALUES (%s, %s)
+"
+
+readonly SQL_TEXT_TAG_ADD="
+	INSERT OR IGNORE INTO text_tags (text_id, tag_id)
+	VALUES (%s, %s)
+"
+
+readonly SQL_TEXT_NOTE_TAG_ADD="
+	INSERT OR IGNORE INTO text_note_tags (text_note_id, tag_id)
+	VALUES (%s, %s)
+"
+
+readonly SQL_QUOTATION_TAG_ADD="
+	INSERT OR IGNORE INTO quotation_tags (quotation_id, tag_id)
+	VALUES (%s, %s)
+"
+
+readonly SQL_WORD_TAG_ADD="
+	INSERT OR IGNORE INTO word_tags (word_id, tag_id)
+	VALUES (%s, %s)
+"
+
+readonly SQL_BOOK_TAGS_CLEAR="
+	DELETE FROM book_tags WHERE book_id = %s
+"
+
+readonly SQL_BOOKMARK_TAGS_CLEAR="
+	DELETE FROM bookmark_tags WHERE bookmark_id = %s
+"
+
+readonly SQL_TEXT_TAGS_CLEAR="
+	DELETE FROM text_tags WHERE text_id = %s
+"
+
+readonly SQL_TEXT_NOTE_TAGS_CLEAR="
+	DELETE FROM text_note_tags WHERE text_note_id = %s
+"
+
+readonly SQL_QUOTATION_TAGS_CLEAR="
+	DELETE FROM quotation_tags WHERE quotation_id = %s
+"
+
+readonly SQL_WORD_TAGS_CLEAR="
+	DELETE FROM word_tags WHERE word_id = %s
+"
+
+books_help() {
+	printf "Subcommands for books:\n"
+	printf "	list			List all books\n"
+	printf "	info <book>		Show detailed information for a book\n"
+	printf "	add\n"
+	printf "		 		 --title \"...\"\n"
+	printf "				[--edition \"...\"]\n"
+	printf "				[--year <year>]\n"
+	printf "				[--isbn10 \"...\"]\n"
+	printf "				[--isbn13 \"...\"]\n"
+	printf "				[--owned]\n"
+	printf "				[--unowned]\n"
+	printf "				[--read]\n"
+	printf "				[--unread]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	update <book>\n"
+	printf "				[--title \"...\"]\n"
+	printf "				[--edition \"...\"]\n"
+	printf "				[--year <year>]\n"
+	printf "				[--isbn10 \"...\"]\n"
+	printf "				[--isbn13 \"...\"]\n"
+	printf "				[--owned]\n"
+	printf "				[--unowned]\n"
+	printf "				[--read]\n"
+	printf "				[--unread]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	search\n"
+	printf "				[--title \"...\"]\n"
+	printf "				[--edition \"...\"]\n"
+	printf "				[--year <year>]\n"
+	printf "				[--isbn10 \"...\"]\n"
+	printf "				[--isbn13 \"...\"]\n"
+	printf "				[--owned]\n"
+	printf "				[--unowned]\n"
+	printf "				[--read]\n"
+	printf "				[--unread]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	delete <book>		Delete a book\n"
+	printf "	help			${BOOKED_HELP_COMMAND_DESCRIPTION}\n"
+}
+
+bookmarks_help() {
+	printf "Subcommands for bookmarks:\n"
+	printf "	list			List all bookmarks\n"
+	printf "	info <bookmark>		Show detailed information for a bookmark\n"
+	printf "	add\n"
+	printf "				 --book <book>\n"
+	printf "				[--chapter \"...\"]\n"
+	printf "				[--page <page>]\n"
+	printf "				[--description \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	update <bookmark>\n"
+	printf "				[--book <book>]\n"
+	printf "				[--chapter \"...\"]\n"
+	printf "				[--page <page>]\n"
+	printf "				[--description \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	search\n"
+	printf "				[--book <book>]\n"
+	printf "				[--chapter \"...\"]\n"
+	printf "				[--page <page>]\n"
+	printf "				[--description \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	delete <bookmark>	Delete a bookmark\n"
+	printf "	help			${BOOKED_HELP_COMMAND_DESCRIPTION}\n"
+}
+
+texts_help() {
+	printf "Subcommands for texts:\n"
+	printf "	list			List all texts\n"
+	printf "	info <text>		Show detailed information for a text\n"
+	printf "	add\n"
+	printf "		 		 --title \"...\"\n"
+	printf "				 --author \"...\"\n"
+	printf "				[--year <year>]\n"
+	printf "				[--url \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	update <text>\n"
+	printf "				[--title \"...\"]\n"
+	printf "				[--author \"...\"]\n"
+	printf "				[--year <year>]\n"
+	printf "				[--url \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	search\n"
+	printf "				[--title \"...\"]\n"
+	printf "				[--author \"...\"]\n"
+	printf "				[--year <year>]\n"
+	printf "				[--url \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	delete <text>		Delete a text\n"
+	printf "	help			${BOOKED_HELP_COMMAND_DESCRIPTION}\n"
+}
+
+text_notes_help() {
+	printf "Subcommands for text-notes:\n"
+	printf "	list			List all text notes\n"
+	printf "	info <text-note>	Show detailed information for a text note\n"
+	printf "	add\n"
+	printf "		 		 --text <text>\n"
+	printf "				[--section \"...\"]\n"
+	printf "				[--page <page>]\n"
+	printf "				[--description \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	update <text-note>\n"
+	printf "				[--text <text>]\n"
+	printf "				[--section \"...\"]\n"
+	printf "				[--page <page>]\n"
+	printf "				[--description \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	search\n"
+	printf "				[--text <text>]\n"
+	printf "				[--section \"...\"]\n"
+	printf "				[--page <page>]\n"
+	printf "				[--description \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	delete <text-note>	Delete a text note\n"
+	printf "	help			${BOOKED_HELP_COMMAND_DESCRIPTION}\n"
+}
+
+quotations_help() {
+	printf "Subcommands for quotations:\n"
+	printf "	list			List all quotations\n"
+	printf "	random			Show a random quotation\n"
+	printf "	info <quotation>	Show detailed information for a quotation\n"
+	printf "	add\n"
+	printf "				 --quotation \"...\"\n"
+	printf "				 --author \"...\"\n"
+	printf "				[--year <year>]\n"
+	printf "				[--description \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	update <quotation>\n"
+	printf "				[--quotation \"...\"]\n"
+	printf "				[--author \"...\"]\n"
+	printf "				[--year <year>]\n"
+	printf "				[--description \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	search\n"
+	printf "				[--quotation \"...\"]\n"
+	printf "				[--author \"...\"]\n"
+	printf "				[--year <year>]\n"
+	printf "				[--description \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	delete <quotation>	Delete a quotation\n"
+	printf "	help			${BOOKED_HELP_COMMAND_DESCRIPTION}\n"
+}
+
+words_help() {
+	printf "Subcommands for words:\n"
+	printf "	list			List all words\n"
+	printf "	random			Show a random word\n"
+	printf "	info <word>		Show detailed information for a word\n"
+	printf "	add\n"
+	printf "				 --word \"...\"\n"
+	printf "				[--language \"...\"]\n"
+	printf "				[--description \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	update <word>\n"
+	printf "				[--word \"...\"]\n"
+	printf "				[--language \"...\"]\n"
+	printf "				[--description \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	search\n"
+	printf "				[--word \"...\"]\n"
+	printf "				[--language \"...\"]\n"
+	printf "				[--description \"...\"]\n"
+	printf "				[--tags \"tag,tag\"]\n"
+	printf "	delete <word>		Delete a word\n"
+	printf "	help			${BOOKED_HELP_COMMAND_DESCRIPTION}\n"
+}
+
+tags_help() {
+	printf "Options for tags:\n"
+	printf "	tags <type>		List tags for books, bookmarks, texts, text-notes, quotations, or words\n"
+}
+
+database_help() {
+	printf "Database:\n"
+	printf "	export [format]		Create an export of the database. ${BOOKED_DB_FORMATS}\n"
+	printf "	import <file>		Import data from a file. ${BOOKED_DB_IMPORT_FORMATS}\n"
+}
+
+environment_help() {
+	printf "Environment variables:\n"
+	printf "	BOOKED_DATA		Specify path of ${BOOKED_NAME} data (default \"\${XDG_DATA_HOME}/${BOOKED_NAME}\"; \"\${HOME}/.local/share/${BOOKED_NAME}\")\n"
+	printf "	BOOKED_RAINBOW		Enable or disable \"rainbow_csv\" style output (default \"1\")\n"
+	printf "	BOOKED_DELIMITER	Specify the string to use as a field delimiter on output (default \" / \")\n"
+	printf "	BOOKED_SEPARATOR	Specify the string to use as a row separator on output (default \"---\")\n"
+	printf "	BOOKED_OWNED_INDICATOR	Indicator to display for owned books (default \"+\")\n"
+	printf "	BOOKED_READ_INDICATOR	Indicator to display for read books (default \"+\")\n"
+	printf "	BOOKED_EMPTY_INDICATOR	Indicator to display for empty fields (default \"-\")\n"
+}
+
+usage() {
+	printf "Usage: %s [command] [subcommand] [options]\n\n" "${BOOKED_NAME}"
+	printf "Commands:\n"
+	printf "	books			Manage books\n"
+	printf "	bookmarks		Manage bookmarks\n"
+	printf "	texts			Manage texts\n"
+	printf "	text-notes		Manage text notes\n"
+	printf "	quotations		Manage quotations\n"
+	printf "	words			Manage words\n"
+	printf "	tags			Indices of tags\n"
+	printf "	help			${BOOKED_HELP_COMMAND_MESSAGE}\n"
+	printf "\n"
+	database_help
+	printf "\n"
+	environment_help
+}
+
+init_database() {
+	if [[ ! -d "${BOOKED_DATA}" ]]; then
+		mkdir --parents "${BOOKED_DATA}"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DATA_CREATE_FAILED} ${BOOKED_DATA}"
+			exit "1"
+		fi
+	fi
+
+	if [[ ! -f "${BOOKED_DB}" ]]; then
+		sqlite3 "${BOOKED_DB}" "${SQL_CREATE_SCHEMA}" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			exit "1"
+		fi
+
+		local REQUIRED_TABLES=("books" "bookmarks" "texts" "text_notes" "quotations" "words" "tags" "book_tags" "bookmark_tags" "text_tags" "text_note_tags" "quotation_tags" "word_tags")
+
+		for TABLE in "${REQUIRED_TABLES[@]}"; do
+			local TABLE_EXISTS=$(sqlite3 "${BOOKED_DB}" "$(printf "${SQL_CHECK_TABLE_EXISTS}" "${TABLE}")")
+
+			if [[ "${TABLE_EXISTS}" -ne "1" ]]; then
+				echo -e "${BOOKED_DB_INITIALIZATION_FAILED}"
+				rm -f "${BOOKED_DB}"
+				exit "1"
+			fi
+		done
+
+		echo -e "${BOOKED_DB_INITIALIZED}"
+	fi
+}
+
+
+query_database() {
+	local DB="${1}"
+	local QUERY="${2}"
+
+	if [[ "${BOOKED_RAINBOW}" -eq "1" ]]; then
+		rainbow_output "${DB}" "${QUERY}"
+	else
+		plain_output "${DB}" "${QUERY}"
+	fi
+}
+
+plain_output() {
+	local DB="${1}"
+	local QUERY="${2}"
+
+	local SQLITE_RAW_OUTPUT=$(sqlite3 -header "${DB}" "${QUERY}")
+
+	if [[ -z "${SQLITE_RAW_OUTPUT}" ]]; then
+		return "0"
+	fi
+
+	local EXPECTED_FIELDS=""
+	local LINE_COUNT=0
+
+	while IFS= read -r LINE; do
+		if [[ -z "${LINE}" ]]; then
+			continue
+		fi
+
+		((LINE_COUNT++))
+
+		if [[ "${LINE_COUNT}" -eq "1" ]]; then
+			EXPECTED_FIELDS=$(echo "${LINE}" | tr --complement --delete '|' | wc --bytes)
+			EXPECTED_FIELDS=$((EXPECTED_FIELDS + 1))
+		fi
+
+		local FIELD_ARRAY=()
+		local REMAINING="${LINE}"
+
+		for ((i=0; i<EXPECTED_FIELDS-1; i++)); do
+			FIELD_ARRAY+=("${REMAINING%%|*}")
+			REMAINING="${REMAINING#*|}"
+		done
+		FIELD_ARRAY+=("${REMAINING}")
+
+		local PLAIN_LINE=""
+
+		for i in "${!FIELD_ARRAY[@]}"; do
+			local FIELD="${FIELD_ARRAY[i]}"
+
+			if [[ "${LINE_COUNT}" -gt "1" ]] && [[ -z "${FIELD}" ]]; then
+				FIELD="${BOOKED_EMPTY_INDICATOR}"
+			fi
+
+			PLAIN_LINE="${PLAIN_LINE}${FIELD}"
+
+			if [[ "${i}" -lt "$((${#FIELD_ARRAY[@]} - 1))" ]]; then
+				PLAIN_LINE="${PLAIN_LINE}${BOOKED_DELIMITER}"
+			fi
+		done
+
+		echo -e "${PLAIN_LINE}"
+
+		if [[ -n "${BOOKED_SEPARATOR}" ]]; then
+			echo -e "${BOOKED_SEPARATOR}"
+		fi
+	done <<< "${SQLITE_RAW_OUTPUT}"
+}
+
+rainbow_output() {
+	local DB="${1}"
+	local QUERY="${2}"
+
+	local COLOR_CODES=(
+		"\e[31m"
+		"\e[32m"
+		"\e[33m"
+		"\e[34m"
+		"\e[35m"
+		"\e[36m"
+	)
+
+	local COLOR_RESET="\e[0m"
+
+	local SQLITE_RAW_OUTPUT=$(sqlite3 -header "${DB}" "${QUERY}")
+
+	if [[ -z "${SQLITE_RAW_OUTPUT}" ]]; then
+		return "0"
+	fi
+
+	local EXPECTED_FIELDS=""
+	local LINE_COUNT=0
+
+	while IFS= read -r LINE; do
+		if [[ -z "${LINE}" ]]; then
+			continue
+		fi
+
+		((LINE_COUNT++))
+
+		if [[ "${LINE_COUNT}" -eq "1" ]]; then
+			EXPECTED_FIELDS=$(echo "${LINE}" | tr --complement --delete '|' | wc --bytes)
+			EXPECTED_FIELDS=$((EXPECTED_FIELDS + 1))
+		fi
+
+		local FIELD_ARRAY=()
+		local REMAINING="${LINE}"
+
+		for ((i=0; i<EXPECTED_FIELDS-1; i++)); do
+			FIELD_ARRAY+=("${REMAINING%%|*}")
+			REMAINING="${REMAINING#*|}"
+		done
+		FIELD_ARRAY+=("${REMAINING}")
+
+		local COLORED_LINE=""
+
+		for i in "${!FIELD_ARRAY[@]}"; do
+			local COLOR_INDEX="$((i % ${#COLOR_CODES[@]}))"
+			local FIELD="${FIELD_ARRAY[i]}"
+
+			if [[ "${LINE_COUNT}" -gt "1" ]] && [[ -z "${FIELD}" ]]; then
+				FIELD="${BOOKED_EMPTY_INDICATOR}"
+			fi
+
+			COLORED_LINE="${COLORED_LINE}${COLOR_CODES[${COLOR_INDEX}]}${FIELD}${COLOR_RESET}"
+
+			if [[ "${i}" -lt "$((${#FIELD_ARRAY[@]} - 1))" ]]; then
+				COLORED_LINE="${COLORED_LINE}${BOOKED_DELIMITER}"
+			fi
+		done
+
+		echo -e "${COLORED_LINE}"
+
+		if [[ -n "${BOOKED_SEPARATOR}" ]]; then
+			echo -e "${BOOKED_SEPARATOR}"
+		fi
+
+	done <<< "${SQLITE_RAW_OUTPUT}"
+}
+
+sanitize_sql() {
+	local INPUT="${1}"
+	printf "%s" "${INPUT}" | sed "s/'/''/g"
+}
+
+sanitize_isbn() {
+	printf "%s" "${1}" | sed --expression="s/[^0-9Xx]//g" | tr "x" "X"
+}
+
+sanitize_tags() {
+	local TAGS_STRING="${1}"
+
+	TAGS_STRING="$(echo "${TAGS_STRING}" | tr "[:upper:]" "[:lower:]")"
+
+	TAGS_STRING="$(echo "${TAGS_STRING}" | sed "s/ *, */,/g")"
+
+	TAGS_STRING="$(echo "${TAGS_STRING}" | sed "s/^ *//;s/ *$//")"
+
+	TAGS_STRING="$(echo "${TAGS_STRING}" | tr --delete '\\')"
+
+	local RESULT=""
+	IFS="," read -ra TAG_ARRAY <<< "${TAGS_STRING}"
+
+	for TAG in "${TAG_ARRAY[@]}"; do
+		local CLEAN_TAG="$(echo "${TAG}" | tr --complement --delete "a-z0-9 +_.-")"
+
+		if [[ -n "${CLEAN_TAG}" ]]; then
+			if [[ -n "${RESULT}" ]]; then
+				RESULT="${RESULT},${CLEAN_TAG}"
+			else
+				RESULT="${CLEAN_TAG}"
+			fi
+		fi
+	done
+
+	echo "${RESULT}"
+}
+
+validate_isbn() {
+	local ISBN_INPUT="${1}"
+	local ISBN_TYPE="${2}"
+	local ISBN_CLEAN="$(echo "${ISBN_INPUT}" | tr --delete "-")"
+
+	if [[ "${ISBN_TYPE}" == "isbn10" ]]; then
+		if [[ "${#ISBN_CLEAN}" -eq "10" ]]; then
+			if [[ ! "${ISBN_CLEAN}" =~ ^[0-9]{9}[0-9Xx]$ ]]; then
+				return "1"
+			fi
+			ISBN_CLEAN="$(echo "${ISBN_CLEAN}" | tr "x" "X")"
+
+			local SUM="0"
+			for i in {0..8}; do
+				local DIGIT="${ISBN_CLEAN:${i}:1}"
+				SUM="$((${SUM} + ${DIGIT} * (10 - ${i})))"
+			done
+
+			local CHECK_DIGIT="${ISBN_CLEAN:9:1}"
+			if [[ "${CHECK_DIGIT}" == "X" ]]; then
+				SUM="$((${SUM} + 10))"
+			else
+				SUM="$((${SUM} + ${CHECK_DIGIT}))"
+			fi
+
+			if [[ "$((${SUM} % 11))" -ne "0" ]]; then
+				return "1"
+			fi
+		elif [[ "${#ISBN_CLEAN}" -eq "13" ]]; then
+			if [[ ! "${ISBN_CLEAN}" =~ ^[0-9]{13}$ ]]; then
+				return "1"
+			fi
+		else
+			return "1"
+		fi
+	elif [[ "${ISBN_TYPE}" == "isbn13" ]]; then
+		if [[ "${#ISBN_CLEAN}" -ne "13" ]]; then
+			return "1"
+		fi
+		if [[ ! "${ISBN_CLEAN}" =~ ^[0-9]{13}$ ]]; then
+			return "1"
+		fi
+
+		local SUM="0"
+		for i in {0..12}; do
+			local DIGIT="${ISBN_CLEAN:${i}:1}"
+			if [[ "$((${i} % 2))" -eq "0" ]]; then
+				SUM="$((${SUM} + ${DIGIT}))"
+			else
+				SUM="$((${SUM} + 3 * ${DIGIT}))"
+			fi
+		done
+
+		if [[ "$((${SUM} % 10))" -ne "0" ]]; then
+			return "1"
+		fi
+	else
+		return "1"
+	fi
+
+	echo "${ISBN_CLEAN}"
+	return "0"
+}
+
+process_tags() {
+	local RESOURCE_ID="${1}"
+	local TAGS_STRING="${2}"
+	local RESOURCE_TYPE="${3}"
+
+	if [[ -z "${RESOURCE_ID}" ]]; then
+		return "1"
+	fi
+
+	TAGS_STRING=$(sanitize_tags "${TAGS_STRING}")
+
+	IFS="," read -ra TAG_ARRAY <<< "${TAGS_STRING}"
+
+	for TAG in "${TAG_ARRAY[@]}"; do
+
+		if [[ -z "${TAG}" ]]; then
+			continue
+		fi
+
+		local ESCAPED_TAG=$(sanitize_sql "${TAG}")
+
+		local TAG_ID=$(sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TAG_GET_ID}" "${ESCAPED_TAG}" "${ESCAPED_TAG}")" 2> "/dev/null")
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+
+		if [[ "${RESOURCE_TYPE}" == "book" ]]; then
+			sqlite3 "${BOOKED_DB}" "$(printf "${SQL_BOOK_TAG_ADD}" "${RESOURCE_ID}" "${TAG_ID}")" 2> "/dev/null"
+
+			if [[ "${?}" -ne "0" ]]; then
+				echo -e "${BOOKED_DB_ERROR}"
+				return "1"
+			fi
+		elif [[ "${RESOURCE_TYPE}" == "bookmark" ]]; then
+			sqlite3 "${BOOKED_DB}" "$(printf "${SQL_BOOKMARK_TAG_ADD}" "${RESOURCE_ID}" "${TAG_ID}")" 2> "/dev/null"
+
+			if [[ "${?}" -ne "0" ]]; then
+				echo -e "${BOOKED_DB_ERROR}"
+				return "1"
+			fi
+		elif [[ "${RESOURCE_TYPE}" == "quotation" ]]; then
+			sqlite3 "${BOOKED_DB}" "$(printf "${SQL_QUOTATION_TAG_ADD}" "${RESOURCE_ID}" "${TAG_ID}")" 2> "/dev/null"
+
+			if [[ "${?}" -ne "0" ]]; then
+				echo -e "${BOOKED_DB_ERROR}"
+				return "1"
+			fi
+		elif [[ "${RESOURCE_TYPE}" == "word" ]]; then
+			sqlite3 "${BOOKED_DB}" "$(printf "${SQL_WORD_TAG_ADD}" "${RESOURCE_ID}" "${TAG_ID}")" 2> "/dev/null"
+
+			if [[ "${?}" -ne "0" ]]; then
+				echo -e "${BOOKED_DB_ERROR}"
+				return "1"
+			fi
+		elif [[ "${RESOURCE_TYPE}" == "text" ]]; then
+			sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TEXT_TAG_ADD}" "${RESOURCE_ID}" "${TAG_ID}")" 2> "/dev/null"
+
+			if [[ "${?}" -ne "0" ]]; then
+				echo -e "${BOOKED_DB_ERROR}"
+				return "1"
+			fi
+		elif [[ "${RESOURCE_TYPE}" == "text-note" ]]; then
+			sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TEXT_NOTE_TAG_ADD}" "${RESOURCE_ID}" "${TAG_ID}")" 2> "/dev/null"
+
+			if [[ "${?}" -ne "0" ]]; then
+				echo -e "${BOOKED_DB_ERROR}"
+				return "1"
+			fi
+		fi
+	done
+}
+
+clear_tags() {
+	local RESOURCE_ID="${1}"
+	local RESOURCE_TYPE="${2}"
+
+	if [[ "${RESOURCE_TYPE}" == "book" ]]; then
+		sqlite3 "${BOOKED_DB}" "$(printf "${SQL_BOOK_TAGS_CLEAR}" "${RESOURCE_ID}")" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+	elif [[ "${RESOURCE_TYPE}" == "bookmark" ]]; then
+		sqlite3 "${BOOKED_DB}" "$(printf "${SQL_BOOKMARK_TAGS_CLEAR}" "${RESOURCE_ID}")" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+	elif [[ "${RESOURCE_TYPE}" == "quotation" ]]; then
+		sqlite3 "${BOOKED_DB}" "$(printf "${SQL_QUOTATION_TAGS_CLEAR}" "${RESOURCE_ID}")" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+	elif [[ "${RESOURCE_TYPE}" == "word" ]]; then
+		sqlite3 "${BOOKED_DB}" "$(printf "${SQL_WORD_TAGS_CLEAR}" "${RESOURCE_ID}")" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+	elif [[ "${RESOURCE_TYPE}" == "text" ]]; then
+		sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TEXT_TAGS_CLEAR}" "${RESOURCE_ID}")" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+	elif [[ "${RESOURCE_TYPE}" == "text-note" ]]; then
+		sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TEXT_NOTE_TAGS_CLEAR}" "${RESOURCE_ID}")" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+	fi
+}
+
+book_exists() {
+	local BOOK_ID="${1}"
+	local EXISTS=$(sqlite3 "${BOOKED_DB}" "$(printf "${SQL_BOOK_EXISTS}" "${BOOK_ID}")")
+
+	if [[ "${EXISTS}" -eq "1" ]]; then
+		return "0"
+	else
+		return "1"
+	fi
+}
+
+bookmark_exists() {
+	local BOOKMARK_ID="${1}"
+	local EXISTS=$(sqlite3 "${BOOKED_DB}" "$(printf "${SQL_BOOKMARK_EXISTS}" "${BOOKMARK_ID}")")
+
+	if [[ "${EXISTS}" -eq "1" ]]; then
+		return "0"
+	else
+		return "1"
+	fi
+}
+
+text_exists() {
+	local TEXT_ID="${1}"
+	local EXISTS=$(sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TEXT_EXISTS}" "${TEXT_ID}")")
+
+	if [[ "${EXISTS}" -eq "1" ]]; then
+		return "0"
+	else
+		return "1"
+	fi
+}
+
+text_note_exists() {
+	local TEXT_NOTE_ID="${1}"
+	local EXISTS=$(sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TEXT_NOTE_EXISTS}" "${TEXT_NOTE_ID}")")
+
+	if [[ "${EXISTS}" -eq "1" ]]; then
+		return "0"
+	else
+		return "1"
+	fi
+}
+
+quotation_exists() {
+	local QUOTATION_ID="${1}"
+	local EXISTS=$(sqlite3 "${BOOKED_DB}" "$(printf "${SQL_QUOTATION_EXISTS}" "${QUOTATION_ID}")")
+
+	if [[ "${EXISTS}" -eq "1" ]]; then
+		return "0"
+	else
+		return "1"
+	fi
+}
+
+word_exists() {
+	local WORD_ID="${1}"
+	local EXISTS=$(sqlite3 "${BOOKED_DB}" "$(printf "${SQL_WORD_EXISTS}" "${WORD_ID}")")
+
+	if [[ "${EXISTS}" -eq "1" ]]; then
+		return "0"
+	else
+		return "1"
+	fi
+}
+
+books_list() {
+	echo -e "\n${BOOKED_HEADER_BOOKS}\n"
+
+	local RESULTS="$(query_database "${BOOKED_DB}" "${SQL_BOOKS_LIST}")"
+
+	if [[ -z "${RESULTS}" ]]; then
+		echo -e "${BOOKED_BOOKS_NO_RESULTS}"
+	else
+		echo "${RESULTS}"
+	fi
+}
+
+books_info() {
+	local BOOK_ID="${1}"
+
+	if [[ -z "${BOOK_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_BOOK_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! book_exists "${BOOK_ID}"; then
+		echo -e "${BOOKED_BOOK_NOT_FOUND} ${BOOK_ID}"
+		return "1"
+	fi
+
+	echo -e "\n${BOOKED_HEADER_BOOKS_INFO}\n"
+
+	query_database "${BOOKED_DB}" "$(printf "${SQL_BOOK_INFO}" "${BOOK_ID}")"
+
+	echo ""
+
+	query_database "${BOOKED_DB}" "$(printf "${SQL_BOOK_BOOKMARKS}" "${BOOK_ID}")"
+}
+
+books_add() {
+	local TITLE=""
+	local EDITION=""
+	local YEAR=""
+	local ISBN10=""
+	local ISBN13=""
+	local OWNED="0"
+	local READ="0"
+	local TAGS=""
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--title)
+				TITLE="${2}"
+				shift "2"
+			;;
+			--edition)
+				EDITION="${2}"
+				shift "2"
+			;;
+			--year)
+				YEAR="${2}"
+
+				if [[ -n "${YEAR}" && (! "${YEAR}" =~ ^[0-9]+$ || "${YEAR}" -lt "0" || "${YEAR}" -gt "${BOOKED_CURRENT_YEAR}") ]]; then
+					echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_YEAR_INVALID}"
+					return "1"
+				fi
+
+				shift "2"
+			;;
+			--isbn10)
+				if [[ -n "${2}" ]]; then
+					ISBN10="$(validate_isbn "${2}" "isbn10")"
+
+					if [[ "${?}" -ne "0" ]]; then
+						echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_ISBN10_INVALID}"
+						return "1"
+					fi
+				else
+					ISBN10=""
+				fi
+
+				shift "2"
+			;;
+			--isbn13)
+				if [[ -n "${2}" ]]; then
+					ISBN13="$(validate_isbn "${2}" "isbn13")"
+
+					if [[ "${?}" -ne "0" ]]; then
+						echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_ISBN13_INVALID}"
+						return "1"
+					fi
+				else
+					ISBN13=""
+				fi
+
+				shift "2"
+			;;
+			--owned)
+				OWNED="1"
+				shift
+			;;
+			--unowned)
+				OWNED="0"
+				shift
+			;;
+			--read)
+				READ="1"
+				shift
+			;;
+			--unread)
+				READ="0"
+				shift
+			;;
+			--tags)
+				TAGS="${2}"
+				shift "2"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	if [[ -z "${TITLE}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_TITLE_REQUIRED}"
+		return "1"
+	fi
+
+	TITLE=$(sanitize_sql "${TITLE}")
+	if [[ -n "${EDITION}" ]]; then
+		EDITION=$(sanitize_sql "${EDITION}")
+	fi
+
+	if [[ -z "${EDITION}" ]]; then
+		EDITION="NULL"
+	else
+		EDITION="'${EDITION}'"
+	fi
+
+	if [[ -z "${YEAR}" ]]; then
+		YEAR="NULL"
+	fi
+
+	if [[ -z "${ISBN10}" ]]; then
+		ISBN10="NULL"
+	else
+		ISBN10="'${ISBN10}'"
+	fi
+
+	if [[ -z "${ISBN13}" ]]; then
+		ISBN13="NULL"
+	else
+		ISBN13="'${ISBN13}'"
+	fi
+
+	local FORMATTED_QUERY=$(printf "${SQL_BOOK_ADD}" "${TITLE}" "${EDITION}" "${YEAR}" "${ISBN10}" "${ISBN13}" "${OWNED}" "${READ}")
+	local BOOK_ID=$(sqlite3 "${BOOKED_DB}" "${FORMATTED_QUERY}" 2> "/dev/null")
+
+	if [[ "${?}" -ne "0" || -z "${BOOK_ID}" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	if [[ -n "${TAGS}" && -n "${BOOK_ID}" ]]; then
+		process_tags "${BOOK_ID}" "${TAGS}" "book"
+	fi
+
+	echo -e "${BOOKED_BOOK_ADDED} ${BOOK_ID}"
+	return "0"
+}
+
+books_update() {
+	local BOOK_ID="${1}"
+
+	shift
+
+	if [[ -z "${BOOK_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_BOOK_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! book_exists "${BOOK_ID}"; then
+		echo -e "${BOOKED_BOOK_NOT_FOUND} ${BOOK_ID}"
+		return "1"
+	fi
+
+	local SET_CLAUSES=""
+	local TAGS=""
+	local UPDATE_TAGS="0"
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--title)
+				local ESCAPED_TITLE=$(sanitize_sql "${2}")
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				SET_CLAUSES="${SET_CLAUSES}title = '${ESCAPED_TITLE}'"
+
+				shift "2"
+			;;
+			--edition)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${2}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}edition = NULL"
+				else
+					local ESCAPED_EDITION=$(sanitize_sql "${2}")
+					SET_CLAUSES="${SET_CLAUSES}edition = '${ESCAPED_EDITION}'"
+				fi
+
+				shift "2"
+			;;
+			--year)
+				if [[ -n "${2}" && (! "${2}" =~ ^[0-9]+$ || "${2}" -lt "0" || "${2}" -gt "${BOOKED_CURRENT_YEAR}") ]]; then
+					echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_YEAR_INVALID}"
+					return "1"
+				fi
+
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${2}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}year = NULL"
+				else
+					SET_CLAUSES="${SET_CLAUSES}year = ${2}"
+				fi
+
+				shift "2"
+			;;
+			--isbn10)
+				if [[ -z "${2}" || "${2}" == "" ]]; then
+					if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+					SET_CLAUSES="${SET_CLAUSES}isbn10 = NULL"
+				elif [[ -n "${2}" ]]; then
+					local VALIDATED_ISBN10=""
+					VALIDATED_ISBN10="$(validate_isbn "${2}" "isbn10")"
+
+					if [[ "${?}" -ne "0" ]]; then
+						echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_ISBN10_INVALID}"
+						return "1"
+					fi
+
+					if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+					SET_CLAUSES="${SET_CLAUSES}isbn10 = '${VALIDATED_ISBN10}'"
+				fi
+
+				shift "2"
+			;;
+			--isbn13)
+				if [[ -z "${2}" || "${2}" == "" ]]; then
+					if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+					SET_CLAUSES="${SET_CLAUSES}isbn13 = NULL"
+				elif [[ -n "${2}" ]]; then
+					local VALIDATED_ISBN13=""
+					VALIDATED_ISBN13="$(validate_isbn "${2}" "isbn13")"
+
+					if [[ "${?}" -ne "0" ]]; then
+						echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_ISBN13_INVALID}"
+						return "1"
+					fi
+
+					if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+					SET_CLAUSES="${SET_CLAUSES}isbn13 = '${VALIDATED_ISBN13}'"
+				fi
+
+				shift "2"
+			;;
+			--owned)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				SET_CLAUSES="${SET_CLAUSES}owned = 1"
+
+				shift
+			;;
+			--unowned)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				SET_CLAUSES="${SET_CLAUSES}owned = 0"
+
+				shift
+			;;
+			--read)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				SET_CLAUSES="${SET_CLAUSES}read = 1"
+
+				shift
+			;;
+			--unread)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				SET_CLAUSES="${SET_CLAUSES}read = 0"
+
+				shift
+			;;
+			--tags)
+				TAGS="${2}"
+				UPDATE_TAGS="1"
+
+				shift "2"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	if [[ -n "${SET_CLAUSES}" ]]; then
+		local FORMATTED_QUERY=$(printf "${SQL_BOOK_UPDATE}" "${SET_CLAUSES}" "${BOOK_ID}")
+		sqlite3 "${BOOKED_DB}" "${FORMATTED_QUERY}" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+	fi
+
+	if [[ "${UPDATE_TAGS}" -eq "1" ]]; then
+		clear_tags "${BOOK_ID}" "book"
+		if [[ -n "${TAGS}" ]]; then
+			process_tags "${BOOK_ID}" "${TAGS}" "book"
+		fi
+	fi
+
+	echo -e "${BOOKED_BOOK_UPDATED} ${BOOK_ID}"
+	return "0"
+}
+
+books_search() {
+	local TITLE=""
+	local EDITION=""
+	local YEAR=""
+	local ISBN10=""
+	local ISBN13=""
+	local OWNED=""
+	local READ=""
+	local TAGS=""
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--title)
+				TITLE="${2}"
+				shift "2"
+			;;
+			--edition)
+				EDITION="${2}"
+				shift "2"
+			;;
+			--year)
+				YEAR="${2}"
+
+				if [[ -n "${2}" && (! "${2}" =~ ^[0-9]+$ || "${2}" -lt "0" || "${2}" -gt "${BOOKED_CURRENT_YEAR}") ]]; then
+					echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_YEAR_INVALID}"
+					return "1"
+				fi
+
+				shift "2"
+			;;
+			--isbn10)
+				if [[ -n "${2}" ]]; then
+					local CLEANED_ISBN="$(echo "${2}" | tr --delete "-")"
+
+					if [[ ! "${CLEANED_ISBN}" =~ ^[0-9Xx]*$ ]]; then
+						echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_SEARCH_ISBN10_CHARACTER_RESTRICTION}"
+						return "1"
+					fi
+
+					if [[ "${#CLEANED_ISBN}" -gt "13" ]]; then
+						echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_SEARCH_ISBN10_CHARACTER_LIMIT}"
+						return "1"
+					fi
+
+					if [[ "${CLEANED_ISBN}" =~ [Xx] ]]; then
+						if [[ "${#CLEANED_ISBN}" -gt "10" ]]; then
+							echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_SEARCH_ISBN10_CHARACTER_X_LENGTH}"
+							return "1"
+						fi
+
+						if [[ "${#CLEANED_ISBN}" -eq "10" && ! "${CLEANED_ISBN}" =~ ^[0-9]{9}[Xx]$ ]]; then
+							echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_SEARCH_ISBN10_CHARACTER_X_INVALID}"
+							return "1"
+						fi
+
+						if [[ "${#CLEANED_ISBN}" -lt "10" && ! "${CLEANED_ISBN}" =~ ^[0-9]*[Xx]$ ]]; then
+							echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_SEARCH_ISBN10_CHARACTER_X_LAST}"
+							return "1"
+						fi
+					fi
+
+					ISBN10="$(echo "${CLEANED_ISBN}" | tr "x" "X")"
+				else
+					ISBN10=""
+				fi
+
+				shift "2"
+			;;
+			--isbn13)
+				if [[ -n "${2}" ]]; then
+					local CLEANED_ISBN="$(echo "${2}" | tr --delete "-")"
+
+					if [[ ! "${CLEANED_ISBN}" =~ ^[0-9]*$ ]]; then
+						echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_SEARCH_ISBN13_CHARACTER_RESTRICTION}"
+						return "1"
+					fi
+
+					if [[ "${#CLEANED_ISBN}" -gt "13" ]]; then
+						echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_SEARCH_ISBN13_CHARACTER_LIMIT}"
+						return "1"
+					fi
+
+					ISBN13="${CLEANED_ISBN}"
+				else
+					ISBN13=""
+				fi
+
+				shift "2"
+			;;
+			--owned)
+				OWNED="1"
+				shift
+			;;
+			--unowned)
+				OWNED="0"
+				shift
+			;;
+			--read)
+				READ="1"
+				shift
+			;;
+			--unread)
+				READ="0"
+				shift
+			;;
+			--tags)
+				TAGS="${2}"
+				shift "2"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	local WHERE_CLAUSES=""
+
+	if [[ -n "${TITLE}" ]]; then
+		local ESCAPED_TITLE=$(sanitize_sql "${TITLE}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}books.title LIKE '%${ESCAPED_TITLE}%'"
+	fi
+
+	if [[ -n "${EDITION}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		local ESCAPED_EDITION=$(sanitize_sql "${EDITION}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}books.edition LIKE '%${ESCAPED_EDITION}%'"
+	fi
+
+	if [[ -n "${YEAR}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		WHERE_CLAUSES="${WHERE_CLAUSES}books.year = ${YEAR}"
+	fi
+
+	if [[ -n "${ISBN10}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		local SANITIZED_ISBN10=$(sanitize_isbn "${ISBN10}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}books.isbn10 = '${SANITIZED_ISBN10}'"
+	fi
+
+	if [[ -n "${ISBN13}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		local SANITIZED_ISBN13=$(sanitize_isbn "${ISBN13}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}books.isbn13 = '${SANITIZED_ISBN13}'"
+	fi
+
+	if [[ -n "${OWNED}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		WHERE_CLAUSES="${WHERE_CLAUSES}books.owned = ${OWNED}"
+	fi
+
+	if [[ -n "${READ}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		WHERE_CLAUSES="${WHERE_CLAUSES}books.read = ${READ}"
+	fi
+
+	if [[ -n "${TAGS}" ]]; then
+		local SANITIZED_TAGS=$(sanitize_tags "${TAGS}")
+		IFS="," read -ra TAG_ARRAY <<< "${SANITIZED_TAGS}"
+
+		for TAG in "${TAG_ARRAY[@]}"; do
+			if [[ -z "${TAG}" ]]; then
+				continue
+			fi
+
+			local ESCAPED_TAG=$(sanitize_sql "${TAG}")
+
+			if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+			WHERE_CLAUSES="${WHERE_CLAUSES}books.id IN (
+				SELECT book_tags.book_id FROM book_tags
+				JOIN tags ON book_tags.tag_id = tags.id
+				WHERE tags.name = '${ESCAPED_TAG}'
+			)"
+		done
+	fi
+
+	local QUERY="${SQL_BOOKS_SEARCH_BASE}"
+
+	if [[ -n "${WHERE_CLAUSES}" ]]; then
+		QUERY="${QUERY} WHERE ${WHERE_CLAUSES}"
+	fi
+
+	QUERY="${QUERY} ORDER BY books.id"
+
+	echo -e "\n${BOOKED_HEADER_BOOKS_SEARCH}\n"
+
+	local RESULTS="$(query_database "${BOOKED_DB}" "${QUERY}")"
+
+	if [[ -z "${RESULTS}" ]]; then
+		echo -e "${BOOKED_SEARCH_BOOKS_NO_RESULTS}"
+	else
+		echo "${RESULTS}"
+	fi
+}
+
+books_delete() {
+	local BOOK_ID="${1}"
+
+	if [[ -z "${BOOK_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_BOOK_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! book_exists "${BOOK_ID}"; then
+		echo -e "${BOOKED_BOOK_NOT_FOUND} ${BOOK_ID}"
+		return "1"
+	fi
+
+	sqlite3 "${BOOKED_DB}" "$(printf "${SQL_BOOK_DELETE}" "${BOOK_ID}")" 2> "/dev/null"
+
+	if [[ "${?}" -ne "0" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	echo -e "${BOOKED_BOOK_DELETED} ${BOOK_ID}"
+	return "0"
+}
+
+bookmarks_list() {
+	echo -e "\n${BOOKED_HEADER_BOOKMARKS}\n"
+
+	local RESULTS="$(query_database "${BOOKED_DB}" "${SQL_BOOKMARKS_LIST}")"
+
+	if [[ -z "${RESULTS}" ]]; then
+		echo -e "${BOOKED_BOOKMARKS_NO_RESULTS}"
+	else
+		echo "${RESULTS}"
+	fi
+}
+
+bookmarks_info() {
+	local BOOKMARK_ID="${1}"
+
+	if [[ -z "${BOOKMARK_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_BOOKMARK_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! bookmark_exists "${BOOKMARK_ID}"; then
+		echo -e "${BOOKED_BOOKMARK_NOT_FOUND} ${BOOKMARK_ID}"
+		return "1"
+	fi
+
+	echo -e "\n${BOOKED_HEADER_BOOKMARKS_INFO}\n"
+
+	query_database "${BOOKED_DB}" "$(printf "${SQL_BOOKMARK_INFO}" "${BOOKMARK_ID}")"
+}
+
+bookmarks_add() {
+	local BOOK_ID=""
+	local CHAPTER=""
+	local PAGE=""
+	local DESCRIPTION=""
+	local TAGS=""
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--book)
+				BOOK_ID="${2}"
+				shift "2"
+			;;
+			--chapter)
+				CHAPTER="${2}"
+				shift "2"
+			;;
+			--page)
+				PAGE="${2}"
+				shift "2"
+			;;
+			--description)
+				DESCRIPTION="${2}"
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				shift "2"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	if [[ -z "${BOOK_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_BOOK_REQUIRED}"
+		return "1"
+	fi
+
+	if ! book_exists "${BOOK_ID}"; then
+		echo -e "${BOOKED_BOOK_NOT_FOUND} ${BOOK_ID}"
+		return "1"
+	fi
+
+	if [[ -z "${CHAPTER}" ]]; then
+		CHAPTER="NULL"
+	else
+		CHAPTER="'$(sanitize_sql "${CHAPTER}")'"
+	fi
+
+	if [[ -z "${PAGE}" ]]; then
+		PAGE="NULL"
+	else
+		PAGE="'$(sanitize_sql "${PAGE}")'"
+	fi
+
+	if [[ -z "${DESCRIPTION}" ]]; then
+		DESCRIPTION="NULL"
+	else
+		DESCRIPTION="'$(sanitize_sql "${DESCRIPTION}")'"
+	fi
+
+	local FORMATTED_QUERY=$(printf "${SQL_BOOKMARK_ADD}" "${BOOK_ID}" "${CHAPTER}" "${PAGE}" "${DESCRIPTION}")
+	local BOOKMARK_ID=$(sqlite3 "${BOOKED_DB}" "${FORMATTED_QUERY}" 2> "/dev/null")
+
+	if [[ "${?}" -ne "0" || -z "${BOOKMARK_ID}" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	if [[ -n "${TAGS}" && -n "${BOOKMARK_ID}" ]]; then
+		process_tags "${BOOKMARK_ID}" "${TAGS}" "bookmark"
+	fi
+
+	echo -e "${BOOKED_BOOKMARK_ADDED} ${BOOKMARK_ID}"
+	return "0"
+}
+
+bookmarks_update() {
+	local BOOKMARK_ID="${1}"
+
+	shift
+
+	if [[ -z "${BOOKMARK_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_BOOKMARK_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! bookmark_exists "${BOOKMARK_ID}"; then
+		echo -e "${BOOKED_BOOKMARK_NOT_FOUND} ${BOOKMARK_ID}"
+		return "1"
+	fi
+
+	local SET_CLAUSES=""
+	local TAGS=""
+	local UPDATE_TAGS="0"
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--book)
+				local BOOK_ID="${2}"
+
+				if ! book_exists "${BOOK_ID}"; then
+					echo -e "${BOOKED_BOOK_NOT_FOUND} ${BOOK_ID}"
+					return "1"
+				fi
+
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				SET_CLAUSES="${SET_CLAUSES}book_id = ${BOOK_ID}"
+
+				shift "2"
+			;;
+			--chapter)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${2}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}chapter = NULL"
+				else
+					local ESCAPED_CHAPTER=$(sanitize_sql "${2}")
+					SET_CLAUSES="${SET_CLAUSES}chapter = '${ESCAPED_CHAPTER}'"
+				fi
+
+				shift "2"
+			;;
+			--page)
+				local PAGE="${2}"
+
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${PAGE}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}page = NULL"
+				else
+					local ESCAPED_PAGE=$(sanitize_sql "${PAGE}")
+					SET_CLAUSES="${SET_CLAUSES}page = '${ESCAPED_PAGE}'"
+				fi
+
+				shift "2"
+			;;
+			--description)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				local ESCAPED_DESCRIPTION=$(sanitize_sql "${2}")
+				SET_CLAUSES="${SET_CLAUSES}description = '${ESCAPED_DESCRIPTION}'"
+
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				UPDATE_TAGS="1"
+
+				shift "2"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	if [[ -n "${SET_CLAUSES}" ]]; then
+		local FORMATTED_QUERY=$(printf "${SQL_BOOKMARK_UPDATE}" "${SET_CLAUSES}" "${BOOKMARK_ID}")
+		sqlite3 "${BOOKED_DB}" "${FORMATTED_QUERY}" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+	fi
+
+	if [[ "${UPDATE_TAGS}" -eq "1" ]]; then
+		clear_tags "${BOOKMARK_ID}" "bookmark"
+		if [[ -n "${TAGS}" ]]; then
+			process_tags "${BOOKMARK_ID}" "${TAGS}" "bookmark"
+		fi
+	fi
+
+	echo -e "${BOOKED_BOOKMARK_UPDATED} ${BOOKMARK_ID}"
+	return "0"
+}
+
+bookmarks_search() {
+	local BOOK_ID=""
+	local CHAPTER=""
+	local PAGE=""
+	local DESCRIPTION=""
+	local TAGS=""
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--book)
+				BOOK_ID="${2}"
+				shift "2"
+			;;
+			--chapter)
+				CHAPTER="${2}"
+				shift "2"
+			;;
+			--page)
+				PAGE="${2}"
+				shift "2"
+			;;
+			--description)
+				DESCRIPTION="${2}"
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				shift "2"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	local WHERE_CLAUSES=""
+
+	if [[ -n "${BOOK_ID}" ]]; then
+		WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.book_id = ${BOOK_ID}"
+	fi
+
+	if [[ -n "${CHAPTER}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		local ESCAPED_CHAPTER=$(sanitize_sql "${CHAPTER}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.chapter LIKE '%${ESCAPED_CHAPTER}%'"
+	fi
+
+	if [[ -n "${PAGE}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.page = ${PAGE}"
+	fi
+
+	if [[ -n "${DESCRIPTION}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		local ESCAPED_DESCRIPTION=$(sanitize_sql "${DESCRIPTION}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.description LIKE '%${ESCAPED_DESCRIPTION}%'"
+	fi
+
+	if [[ -n "${TAGS}" ]]; then
+		local SANITIZED_TAGS=$(sanitize_tags "${TAGS}")
+		IFS="," read -ra TAG_ARRAY <<< "${SANITIZED_TAGS}"
+
+		for TAG in "${TAG_ARRAY[@]}"; do
+			if [[ -z "${TAG}" ]]; then
+				continue
+			fi
+
+			local ESCAPED_TAG=$(sanitize_sql "${TAG}")
+
+			if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+			WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.id IN (
+				SELECT bookmark_tags.bookmark_id FROM bookmark_tags
+				JOIN tags ON bookmark_tags.tag_id = tags.id
+				WHERE tags.name = '${ESCAPED_TAG}'
+			)"
+		done
+	fi
+
+	local QUERY="${SQL_BOOKMARKS_SEARCH_BASE}"
+
+	if [[ -n "${WHERE_CLAUSES}" ]]; then
+		QUERY="${QUERY} WHERE ${WHERE_CLAUSES}"
+	fi
+
+	QUERY="${QUERY} ORDER BY bookmarks.id"
+
+	echo -e "\n${BOOKED_HEADER_BOOKMARKS_SEARCH}\n"
+
+	local RESULTS="$(query_database "${BOOKED_DB}" "${QUERY}")"
+
+	if [[ -z "${RESULTS}" ]]; then
+		echo -e "${BOOKED_SEARCH_BOOKMARKS_NO_RESULTS}"
+	else
+		echo "${RESULTS}"
+	fi
+}
+
+bookmarks_delete() {
+	local BOOKMARK_ID="${1}"
+
+	if [[ -z "${BOOKMARK_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_BOOKMARK_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! bookmark_exists "${BOOKMARK_ID}"; then
+		echo -e "${BOOKED_BOOKMARK_NOT_FOUND} ${BOOKMARK_ID}"
+		return "1"
+	fi
+
+	sqlite3 "${BOOKED_DB}" "$(printf "${SQL_BOOKMARK_DELETE}" "${BOOKMARK_ID}")" 2> "/dev/null"
+
+	if [[ "${?}" -ne "0" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	echo -e "${BOOKED_BOOKMARK_DELETED} ${BOOKMARK_ID}"
+	return "0"
+}
+
+texts_list() {
+	echo -e "\n${BOOKED_HEADER_TEXTS}\n"
+
+	local RESULTS="$(query_database "${BOOKED_DB}" "${SQL_TEXTS_LIST}")"
+
+	if [[ -z "${RESULTS}" ]]; then
+		echo -e "${BOOKED_TEXTS_NO_RESULTS}"
+	else
+		echo "${RESULTS}"
+	fi
+}
+
+texts_info() {
+	local TEXT_ID="${1}"
+
+	if [[ -z "${TEXT_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_TEXT_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! text_exists "${TEXT_ID}"; then
+		echo -e "${BOOKED_TEXT_NOT_FOUND} ${TEXT_ID}"
+		return "1"
+	fi
+
+	echo -e "\n${BOOKED_HEADER_TEXTS_INFO}\n"
+
+	query_database "${BOOKED_DB}" "$(printf "${SQL_TEXT_INFO}" "${TEXT_ID}")"
+
+	echo ""
+
+	query_database "${BOOKED_DB}" "$(printf "${SQL_TEXT_TEXT_NOTES}" "${TEXT_ID}")"
+}
+
+texts_add() {
+	local TITLE=""
+	local AUTHOR=""
+	local YEAR=""
+	local URL=""
+	local TAGS=""
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--title)
+				TITLE="${2}"
+				shift "2"
+			;;
+			--author)
+				AUTHOR="${2}"
+				shift "2"
+			;;
+			--year)
+				YEAR="${2}"
+
+				if [[ -n "${YEAR}" && (! "${YEAR}" =~ ^[0-9]+$ || "${YEAR}" -lt "0" || "${YEAR}" -gt "${BOOKED_CURRENT_YEAR}") ]]; then
+					echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_YEAR_INVALID}"
+					return "1"
+				fi
+
+				shift "2"
+			;;
+			--url)
+				URL="${2}"
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				shift "2"
+			;;
+			--help)
+				texts_help
+				return "0"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	if [[ -z "${TITLE}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_TITLE_REQUIRED}"
+		return "1"
+	fi
+
+	if [[ -z "${AUTHOR}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_AUTHOR_REQUIRED}"
+		return "1"
+	fi
+
+	if [[ -z "${YEAR}" ]]; then
+		YEAR="NULL"
+	fi
+
+	if [[ -z "${URL}" ]]; then
+		URL="NULL"
+	else
+		URL="'$(sanitize_sql "${URL}")'"
+	fi
+
+	local ESCAPED_TITLE=$(sanitize_sql "${TITLE}")
+	local ESCAPED_AUTHOR=$(sanitize_sql "${AUTHOR}")
+
+	local TEXT_ID=$(sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TEXT_ADD}" "${ESCAPED_TITLE}" "${ESCAPED_AUTHOR}" "${YEAR}" "${URL}")")
+
+	if [[ "${?}" -ne "0" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	if [[ -n "${TAGS}" && -n "${TEXT_ID}" ]]; then
+		process_tags "${TEXT_ID}" "${TAGS}" "text"
+	fi
+
+	echo -e "${BOOKED_TEXT_ADDED} ${TEXT_ID}"
+	return "0"
+}
+
+texts_update() {
+	local TEXT_ID="${1}"
+
+	shift
+
+	if [[ -z "${TEXT_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_TEXT_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! text_exists "${TEXT_ID}"; then
+		echo -e "${BOOKED_TEXT_NOT_FOUND} ${TEXT_ID}"
+		return "1"
+	fi
+
+	local SET_CLAUSES=""
+	local TAGS=""
+	local UPDATE_TAGS="0"
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--title)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				local ESCAPED_TITLE=$(sanitize_sql "${2}")
+				SET_CLAUSES="${SET_CLAUSES}title = '${ESCAPED_TITLE}'"
+
+				shift "2"
+			;;
+			--author)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				local ESCAPED_AUTHOR=$(sanitize_sql "${2}")
+				SET_CLAUSES="${SET_CLAUSES}author = '${ESCAPED_AUTHOR}'"
+
+				shift "2"
+			;;
+			--year)
+				local YEAR="${2}"
+
+				if [[ -n "${YEAR}" && (! "${YEAR}" =~ ^[0-9]+$ || "${YEAR}" -lt "0" || "${YEAR}" -gt "${BOOKED_CURRENT_YEAR}") ]]; then
+					echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_YEAR_INVALID}"
+					return "1"
+				fi
+
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${YEAR}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}year = NULL"
+				else
+					SET_CLAUSES="${SET_CLAUSES}year = ${YEAR}"
+				fi
+
+				shift "2"
+			;;
+			--url)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${2}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}url = NULL"
+				else
+					local ESCAPED_URL=$(sanitize_sql "${2}")
+					SET_CLAUSES="${SET_CLAUSES}url = '${ESCAPED_URL}'"
+				fi
+
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				UPDATE_TAGS="1"
+
+				shift "2"
+			;;
+			--help)
+				texts_help
+				return "0"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	if [[ -n "${SET_CLAUSES}" ]]; then
+		sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TEXT_UPDATE}" "${SET_CLAUSES}" "${TEXT_ID}")" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+	fi
+
+	if [[ "${UPDATE_TAGS}" -eq "1" ]]; then
+		clear_tags "${TEXT_ID}" "text"
+		if [[ -n "${TAGS}" ]]; then
+			process_tags "${TEXT_ID}" "${TAGS}" "text"
+		fi
+	fi
+
+	echo -e "${BOOKED_TEXT_UPDATED} ${TEXT_ID}"
+	return "0"
+}
+
+texts_search() {
+	local TITLE=""
+	local AUTHOR=""
+	local YEAR=""
+	local URL=""
+	local TAGS=""
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--title)
+				TITLE="${2}"
+				shift "2"
+			;;
+			--author)
+				AUTHOR="${2}"
+				shift "2"
+			;;
+			--year)
+				YEAR="${2}"
+				shift "2"
+			;;
+			--url)
+				URL="${2}"
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				shift "2"
+			;;
+			--help)
+				texts_help
+				return "0"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	local WHERE_CLAUSES=""
+
+	if [[ -n "${TITLE}" ]]; then
+		local ESCAPED_TITLE=$(sanitize_sql "${TITLE}")
+		WHERE_CLAUSES="texts.title LIKE '%${ESCAPED_TITLE}%'"
+	fi
+
+	if [[ -n "${AUTHOR}" ]]; then
+		local ESCAPED_AUTHOR=$(sanitize_sql "${AUTHOR}")
+
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		WHERE_CLAUSES="${WHERE_CLAUSES}texts.author LIKE '%${ESCAPED_AUTHOR}%'"
+	fi
+
+	if [[ -n "${YEAR}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		WHERE_CLAUSES="${WHERE_CLAUSES}texts.year = ${YEAR}"
+	fi
+
+	if [[ -n "${URL}" ]]; then
+		local ESCAPED_URL=$(sanitize_sql "${URL}")
+
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		WHERE_CLAUSES="${WHERE_CLAUSES}texts.url LIKE '%${ESCAPED_URL}%'"
+	fi
+
+	if [[ -n "${TAGS}" ]]; then
+		IFS="," read -ra TAG_ARRAY <<< "${TAGS}"
+
+		for TAG in "${TAG_ARRAY[@]}"; do
+			local ESCAPED_TAG=$(sanitize_sql "${TAG}")
+
+			if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+			WHERE_CLAUSES="${WHERE_CLAUSES}texts.id IN (
+				SELECT text_tags.text_id FROM text_tags
+				JOIN tags ON text_tags.tag_id = tags.id
+				WHERE tags.name = '${ESCAPED_TAG}'
+			)"
+		done
+	fi
+
+	if [[ -z "${WHERE_CLAUSES}" ]]; then
+		WHERE_CLAUSES="1"
+	fi
+
+	echo -e "\n${BOOKED_HEADER_TEXTS_SEARCH}\n"
+
+	local RESULTS="$(query_database "${BOOKED_DB}" "$(printf "${SQL_TEXTS_SEARCH_BASE}" "${WHERE_CLAUSES}")")"
+
+	if [[ -z "${RESULTS}" ]]; then
+		echo "${BOOKED_SEARCH_TEXTS_NO_RESULTS}"
+	else
+		echo "${RESULTS}"
+	fi
+}
+
+texts_delete() {
+	local TEXT_ID="${1}"
+
+	if [[ -z "${TEXT_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_TEXT_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! text_exists "${TEXT_ID}"; then
+		echo -e "${BOOKED_TEXT_NOT_FOUND} ${TEXT_ID}"
+		return "1"
+	fi
+
+	sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TEXT_DELETE}" "${TEXT_ID}")" 2> "/dev/null"
+
+	if [[ "${?}" -ne "0" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	echo -e "${BOOKED_TEXT_DELETED} ${TEXT_ID}"
+	return "0"
+}
+
+text_notes_list() {
+	echo -e "\n${BOOKED_HEADER_TEXT_NOTES}\n"
+
+	local RESULTS="$(query_database "${BOOKED_DB}" "${SQL_TEXT_NOTES_LIST}")"
+
+	if [[ -z "${RESULTS}" ]]; then
+		echo -e "${BOOKED_TEXT_NOTES_NO_RESULTS}"
+	else
+		echo "${RESULTS}"
+	fi
+}
+
+text_notes_info() {
+	local TEXT_NOTE_ID="${1}"
+
+	if [[ -z "${TEXT_NOTE_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_TEXT_NOTE_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! text_note_exists "${TEXT_NOTE_ID}"; then
+		echo -e "${BOOKED_TEXT_NOTE_NOT_FOUND} ${TEXT_NOTE_ID}"
+		return "1"
+	fi
+
+	echo -e "\n${BOOKED_HEADER_TEXT_NOTES_INFO}\n"
+
+	query_database "${BOOKED_DB}" "$(printf "${SQL_TEXT_NOTE_INFO}" "${TEXT_NOTE_ID}")"
+}
+
+text_notes_add() {
+	local TEXT_ID=""
+	local PAGE=""
+	local SECTION=""
+	local DESCRIPTION=""
+	local TAGS=""
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--text)
+				TEXT_ID="${2}"
+				shift "2"
+			;;
+			--page)
+				PAGE="${2}"
+				shift "2"
+			;;
+			--section)
+				SECTION="${2}"
+				shift "2"
+			;;
+			--description)
+				DESCRIPTION="${2}"
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				shift "2"
+			;;
+			--help)
+				text_notes_help
+				return "0"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	if [[ -z "${TEXT_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_TEXT_REQUIRED}"
+		return "1"
+	fi
+
+	if ! text_exists "${TEXT_ID}"; then
+		echo -e "${BOOKED_TEXT_NOT_FOUND} ${TEXT_ID}"
+		return "1"
+	fi
+
+	if [[ -z "${PAGE}" ]]; then
+		PAGE="NULL"
+	else
+		PAGE="'$(sanitize_sql "${PAGE}")'"
+	fi
+
+	if [[ -z "${SECTION}" ]]; then
+		SECTION="NULL"
+	else
+		SECTION="'$(sanitize_sql "${SECTION}")'"
+	fi
+
+	if [[ -z "${DESCRIPTION}" ]]; then
+		DESCRIPTION="NULL"
+	else
+		DESCRIPTION="'$(sanitize_sql "${DESCRIPTION}")'"
+	fi
+
+	local TEXT_NOTE_ID=$(sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TEXT_NOTE_ADD}" "${TEXT_ID}" "${SECTION}" "${PAGE}" "${DESCRIPTION}")")
+
+	if [[ "${?}" -ne "0" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	if [[ -n "${TAGS}" && -n "${TEXT_NOTE_ID}" ]]; then
+		process_tags "${TEXT_NOTE_ID}" "${TAGS}" "text-note"
+	fi
+
+	echo -e "${BOOKED_TEXT_NOTE_ADDED} ${TEXT_NOTE_ID}"
+	return "0"
+}
+
+text_notes_update() {
+	local TEXT_NOTE_ID="${1}"
+
+	shift
+
+	if [[ -z "${TEXT_NOTE_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_TEXT_NOTE_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! text_note_exists "${TEXT_NOTE_ID}"; then
+		echo -e "${BOOKED_TEXT_NOTE_NOT_FOUND} ${TEXT_NOTE_ID}"
+		return "1"
+	fi
+
+	local SET_CLAUSES=""
+	local TAGS=""
+	local UPDATE_TAGS="0"
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--text)
+				local TEXT_ID="${2}"
+
+				if ! text_exists "${TEXT_ID}"; then
+					echo -e "${BOOKED_TEXT_NOT_FOUND} ${TEXT_ID}"
+					return "1"
+				fi
+
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				SET_CLAUSES="${SET_CLAUSES}text_id = ${TEXT_ID}"
+
+				shift "2"
+			;;
+			--page)
+				local PAGE="${2}"
+
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${PAGE}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}page = NULL"
+				else
+					local ESCAPED_PAGE=$(sanitize_sql "${PAGE}")
+					SET_CLAUSES="${SET_CLAUSES}page = '${ESCAPED_PAGE}'"
+				fi
+
+				shift "2"
+			;;
+			--section)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${2}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}section = NULL"
+				else
+					local ESCAPED_SECTION=$(sanitize_sql "${2}")
+					SET_CLAUSES="${SET_CLAUSES}section = '${ESCAPED_SECTION}'"
+				fi
+
+				shift "2"
+			;;
+			--description)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${2}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}description = NULL"
+				else
+					local ESCAPED_DESCRIPTION=$(sanitize_sql "${2}")
+					SET_CLAUSES="${SET_CLAUSES}description = '${ESCAPED_DESCRIPTION}'"
+				fi
+
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				UPDATE_TAGS="1"
+
+				shift "2"
+			;;
+			--help)
+				text_notes_help
+				return "0"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	if [[ -n "${SET_CLAUSES}" ]]; then
+		sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TEXT_NOTE_UPDATE}" "${SET_CLAUSES}" "${TEXT_NOTE_ID}")" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+	fi
+
+	if [[ "${UPDATE_TAGS}" -eq "1" ]]; then
+		clear_tags "${TEXT_NOTE_ID}" "text-note"
+		if [[ -n "${TAGS}" ]]; then
+			process_tags "${TEXT_NOTE_ID}" "${TAGS}" "text-note"
+		fi
+	fi
+
+	echo -e "${BOOKED_TEXT_NOTE_UPDATED} ${TEXT_NOTE_ID}"
+	return "0"
+}
+
+text_notes_search() {
+	local TEXT_ID=""
+	local PAGE=""
+	local SECTION=""
+	local DESCRIPTION=""
+	local TAGS=""
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--text)
+				TEXT_ID="${2}"
+				shift "2"
+			;;
+			--page)
+				PAGE="${2}"
+				shift "2"
+			;;
+			--section)
+				SECTION="${2}"
+				shift "2"
+			;;
+			--description)
+				DESCRIPTION="${2}"
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				shift "2"
+			;;
+			--help)
+				text_notes_help
+				return "0"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	local WHERE_CLAUSES=""
+
+	if [[ -n "${TEXT_ID}" ]]; then
+		WHERE_CLAUSES="text_notes.text_id = ${TEXT_ID}"
+	fi
+
+	if [[ -n "${PAGE}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		WHERE_CLAUSES="${WHERE_CLAUSES}text_notes.page = ${PAGE}"
+	fi
+
+	if [[ -n "${SECTION}" ]]; then
+		local ESCAPED_SECTION=$(sanitize_sql "${SECTION}")
+
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		WHERE_CLAUSES="${WHERE_CLAUSES}text_notes.section LIKE '%${ESCAPED_SECTION}%'"
+	fi
+
+	if [[ -n "${DESCRIPTION}" ]]; then
+		local ESCAPED_DESCRIPTION=$(sanitize_sql "${DESCRIPTION}")
+
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		WHERE_CLAUSES="${WHERE_CLAUSES}text_notes.description LIKE '%${ESCAPED_DESCRIPTION}%'"
+	fi
+
+	if [[ -n "${TAGS}" ]]; then
+		IFS="," read -ra TAG_ARRAY <<< "${TAGS}"
+
+		for TAG in "${TAG_ARRAY[@]}"; do
+			local ESCAPED_TAG=$(sanitize_sql "${TAG}")
+
+			if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+			WHERE_CLAUSES="${WHERE_CLAUSES}text_notes.id IN (
+				SELECT text_note_tags.text_note_id FROM text_note_tags
+				JOIN tags ON text_note_tags.tag_id = tags.id
+				WHERE tags.name = '${ESCAPED_TAG}'
+			)"
+		done
+	fi
+
+	if [[ -z "${WHERE_CLAUSES}" ]]; then
+		WHERE_CLAUSES="1"
+	fi
+
+	echo -e "\n${BOOKED_HEADER_TEXT_NOTES_SEARCH}\n"
+
+	local RESULTS="$(query_database "${BOOKED_DB}" "$(printf "${SQL_TEXT_NOTES_SEARCH_BASE}" "${WHERE_CLAUSES}")")"
+
+	if [[ -z "${RESULTS}" ]]; then
+		echo "${BOOKED_SEARCH_TEXT_NOTES_NO_RESULTS}"
+	else
+		echo "${RESULTS}"
+	fi
+}
+
+text_notes_delete() {
+	local TEXT_NOTE_ID="${1}"
+
+	if [[ -z "${TEXT_NOTE_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_TEXT_NOTE_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! text_note_exists "${TEXT_NOTE_ID}"; then
+		echo -e "${BOOKED_TEXT_NOTE_NOT_FOUND} ${TEXT_NOTE_ID}"
+		return "1"
+	fi
+
+	sqlite3 "${BOOKED_DB}" "$(printf "${SQL_TEXT_NOTE_DELETE}" "${TEXT_NOTE_ID}")" 2> "/dev/null"
+
+	if [[ "${?}" -ne "0" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	echo -e "${BOOKED_TEXT_NOTE_DELETED} ${TEXT_NOTE_ID}"
+	return "0"
+}
+
+quotations_list() {
+	echo -e "\n${BOOKED_HEADER_QUOTATIONS}\n"
+
+	local RESULTS="$(query_database "${BOOKED_DB}" "${SQL_QUOTATIONS_LIST}")"
+
+	if [[ -z "${RESULTS}" ]]; then
+		echo -e "${BOOKED_QUOTATIONS_NO_RESULTS}"
+	else
+		echo "${RESULTS}"
+	fi
+}
+
+quotations_random() {
+	local RESULT=$(sqlite3 "${BOOKED_DB}" "${SQL_QUOTATION_RANDOM}" 2> "/dev/null")
+
+	if [[ "${?}" -ne "0" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	if [[ -z "${RESULT}" ]]; then
+		echo -e "${BOOKED_SEARCH_QUOTATIONS_NO_RESULTS}"
+		return "1"
+	fi
+
+	IFS="|" read -r QUOTATION AUTHOR YEAR <<< "${RESULT}"
+
+	if [[ -n "${YEAR}" ]]; then
+		printf "\e[3m\"%s\"\e[0m - %s (%s)\n" "${QUOTATION}" "${AUTHOR}" "${YEAR}"
+	else
+		printf "\e[3m\"%s\"\e[0m - %s\n" "${QUOTATION}" "${AUTHOR}"
+	fi
+
+	return "0"
+}
+
+quotations_info() {
+	local QUOTATION_ID="${1}"
+
+	if [[ -z "${QUOTATION_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_QUOTATION_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! quotation_exists "${QUOTATION_ID}"; then
+		echo -e "${BOOKED_QUOTATION_NOT_FOUND} ${QUOTATION_ID}"
+		return "1"
+	fi
+
+	echo -e "\n${BOOKED_HEADER_QUOTATIONS_INFO}\n"
+
+	query_database "${BOOKED_DB}" "$(printf "${SQL_QUOTATION_INFO}" "${QUOTATION_ID}")"
+}
+
+quotations_add() {
+	local QUOTATION=""
+	local AUTHOR=""
+	local YEAR=""
+	local DESCRIPTION=""
+	local TAGS=""
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--quotation)
+				QUOTATION="${2}"
+				shift "2"
+			;;
+			--author)
+				AUTHOR="${2}"
+				shift "2"
+			;;
+			--year)
+				YEAR="${2}"
+
+				if [[ -n "${YEAR}" && (! "${YEAR}" =~ ^[0-9]+$ || "${YEAR}" -lt "0" || "${YEAR}" -gt "${BOOKED_CURRENT_YEAR}") ]]; then
+					echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_YEAR_INVALID}"
+					return "1"
+				fi
+
+				shift "2"
+			;;
+			--description)
+				DESCRIPTION="${2}"
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				shift "2"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	if [[ -z "${QUOTATION}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_QUOTATION_REQUIRED}"
+		return "1"
+	fi
+
+	if [[ -z "${AUTHOR}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_AUTHOR_REQUIRED}"
+		return "1"
+	fi
+
+	QUOTATION=$(sanitize_sql "${QUOTATION}")
+	AUTHOR=$(sanitize_sql "${AUTHOR}")
+
+	if [[ -n "${DESCRIPTION}" ]]; then
+		DESCRIPTION=$(sanitize_sql "${DESCRIPTION}")
+	fi
+
+	if [[ -z "${YEAR}" ]]; then
+		YEAR="NULL"
+	fi
+
+	if [[ -z "${DESCRIPTION}" ]]; then
+		DESCRIPTION="NULL"
+	else
+		DESCRIPTION="'${DESCRIPTION}'"
+	fi
+
+	local FORMATTED_QUERY=$(printf "${SQL_QUOTATION_ADD}" "${QUOTATION}" "${AUTHOR}" "${YEAR}" "${DESCRIPTION}")
+	local QUOTATION_ID=$(sqlite3 "${BOOKED_DB}" "${FORMATTED_QUERY}" 2> "/dev/null")
+
+	if [[ "${?}" -ne "0" || -z "${QUOTATION_ID}" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	if [[ -n "${TAGS}" && -n "${QUOTATION_ID}" ]]; then
+		process_tags "${QUOTATION_ID}" "${TAGS}" "quotation"
+	fi
+
+	echo -e "${BOOKED_QUOTATION_ADDED} ${QUOTATION_ID}"
+	return "0"
+}
+
+quotations_update() {
+	local QUOTATION_ID="${1}"
+
+	shift
+
+	if [[ -z "${QUOTATION_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_QUOTATION_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! quotation_exists "${QUOTATION_ID}"; then
+		echo -e "${BOOKED_QUOTATION_NOT_FOUND} ${QUOTATION_ID}"
+		return "1"
+	fi
+
+	local SET_CLAUSES=""
+	local TAGS=""
+	local UPDATE_TAGS="0"
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--quotation)
+				local ESCAPED_QUOTATION=$(sanitize_sql "${2}")
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				SET_CLAUSES="${SET_CLAUSES}quotation = '${ESCAPED_QUOTATION}'"
+
+				shift "2"
+			;;
+			--author)
+				local ESCAPED_AUTHOR=$(sanitize_sql "${2}")
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				SET_CLAUSES="${SET_CLAUSES}author = '${ESCAPED_AUTHOR}'"
+
+				shift "2"
+			;;
+			--year)
+				if [[ -n "${2}" && (! "${2}" =~ ^[0-9]+$ || "${2}" -lt "0" || "${2}" -gt "${BOOKED_CURRENT_YEAR}") ]]; then
+					echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_YEAR_INVALID}"
+					return "1"
+				fi
+
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${2}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}year = NULL"
+				else
+					SET_CLAUSES="${SET_CLAUSES}year = ${2}"
+				fi
+
+				shift "2"
+			;;
+			--description)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${2}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}description = NULL"
+				else
+					local ESCAPED_DESCRIPTION=$(sanitize_sql "${2}")
+					SET_CLAUSES="${SET_CLAUSES}description = '${ESCAPED_DESCRIPTION}'"
+				fi
+
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				UPDATE_TAGS="1"
+
+				shift "2"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	if [[ -n "${SET_CLAUSES}" ]]; then
+		local FORMATTED_QUERY=$(printf "${SQL_QUOTATION_UPDATE}" "${SET_CLAUSES}" "${QUOTATION_ID}")
+		sqlite3 "${BOOKED_DB}" "${FORMATTED_QUERY}" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+	fi
+
+	if [[ "${UPDATE_TAGS}" -eq "1" ]]; then
+		clear_tags "${QUOTATION_ID}" "quotation"
+		if [[ -n "${TAGS}" ]]; then
+			process_tags "${QUOTATION_ID}" "${TAGS}" "quotation"
+		fi
+	fi
+
+	echo -e "${BOOKED_QUOTATION_UPDATED} ${QUOTATION_ID}"
+	return "0"
+}
+
+quotations_search() {
+	local QUOTATION=""
+	local AUTHOR=""
+	local YEAR=""
+	local DESCRIPTION=""
+	local TAGS=""
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--quotation)
+				QUOTATION="${2}"
+				shift "2"
+			;;
+			--author)
+				AUTHOR="${2}"
+				shift "2"
+			;;
+			--year)
+				YEAR="${2}"
+
+				if [[ -n "${2}" && (! "${2}" =~ ^[0-9]+$ || "${2}" -lt "0" || "${2}" -gt "${BOOKED_CURRENT_YEAR}") ]]; then
+					echo -e "${BOOKED_PARAMETER_INVALID} ${BOOKED_YEAR_INVALID}"
+					return "1"
+				fi
+
+				shift "2"
+			;;
+			--description)
+				DESCRIPTION="${2}"
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				shift "2"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	local WHERE_CLAUSES=""
+
+	if [[ -n "${QUOTATION}" ]]; then
+		local ESCAPED_QUOTATION=$(sanitize_sql "${QUOTATION}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}quotations.quotation LIKE '%${ESCAPED_QUOTATION}%'"
+	fi
+
+	if [[ -n "${AUTHOR}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		local ESCAPED_AUTHOR=$(sanitize_sql "${AUTHOR}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}quotations.author LIKE '%${ESCAPED_AUTHOR}%'"
+	fi
+
+	if [[ -n "${YEAR}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		WHERE_CLAUSES="${WHERE_CLAUSES}quotations.year = ${YEAR}"
+	fi
+
+	if [[ -n "${DESCRIPTION}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		local ESCAPED_DESCRIPTION=$(sanitize_sql "${DESCRIPTION}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}quotations.description LIKE '%${ESCAPED_DESCRIPTION}%'"
+	fi
+
+	if [[ -n "${TAGS}" ]]; then
+		local SANITIZED_TAGS=$(sanitize_tags "${TAGS}")
+		IFS="," read -ra TAG_ARRAY <<< "${SANITIZED_TAGS}"
+
+		for TAG in "${TAG_ARRAY[@]}"; do
+			if [[ -z "${TAG}" ]]; then
+				continue
+			fi
+
+			local ESCAPED_TAG=$(sanitize_sql "${TAG}")
+
+			if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+			WHERE_CLAUSES="${WHERE_CLAUSES}quotations.id IN (
+				SELECT quotation_tags.quotation_id FROM quotation_tags
+				JOIN tags ON quotation_tags.tag_id = tags.id
+				WHERE tags.name = '${ESCAPED_TAG}'
+			)"
+		done
+	fi
+
+	local QUERY="${SQL_QUOTATIONS_SEARCH_BASE}"
+
+	if [[ -n "${WHERE_CLAUSES}" ]]; then
+		QUERY="${QUERY} WHERE ${WHERE_CLAUSES}"
+	fi
+
+	QUERY="${QUERY} ORDER BY quotations.id"
+
+	echo -e "\n${BOOKED_HEADER_QUOTATIONS_SEARCH}\n"
+
+	local RESULTS="$(query_database "${BOOKED_DB}" "${QUERY}")"
+
+	if [[ -z "${RESULTS}" ]]; then
+		echo -e "${BOOKED_SEARCH_QUOTATIONS_NO_RESULTS}"
+	else
+		echo "${RESULTS}"
+	fi
+}
+
+quotations_delete() {
+	local QUOTATION_ID="${1}"
+
+	if [[ -z "${QUOTATION_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_QUOTATION_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! quotation_exists "${QUOTATION_ID}"; then
+		echo -e "${BOOKED_QUOTATION_NOT_FOUND} ${QUOTATION_ID}"
+		return "1"
+	fi
+
+	sqlite3 "${BOOKED_DB}" "$(printf "${SQL_QUOTATION_DELETE}" "${QUOTATION_ID}")" 2> "/dev/null"
+
+	if [[ "${?}" -ne "0" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	echo -e "${BOOKED_QUOTATION_DELETED} ${QUOTATION_ID}"
+	return "0"
+}
+
+words_list() {
+	echo -e "\n${BOOKED_HEADER_WORDS}\n"
+
+	local RESULTS="$(query_database "${BOOKED_DB}" "${SQL_WORDS_LIST}")"
+
+	if [[ -z "${RESULTS}" ]]; then
+		echo -e "${BOOKED_WORDS_NO_RESULTS}"
+	else
+		echo "${RESULTS}"
+	fi
+}
+
+words_random() {
+	local RESULT=$(sqlite3 "${BOOKED_DB}" "${SQL_WORD_RANDOM}" 2> "/dev/null")
+
+	if [[ "${?}" -ne "0" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	if [[ -z "${RESULT}" ]]; then
+		echo -e "${BOOKED_SEARCH_WORDS_NO_RESULTS}"
+		return "1"
+	fi
+
+	IFS="|" read -r WORD LANGUAGE <<< "${RESULT}"
+
+	if [[ -n "${LANGUAGE}" ]]; then
+		printf "\e[3m%s\e[0m (%s)\n" "${WORD}" "${LANGUAGE}"
+	else
+		printf "\e[3m%s\e[0m\n" "${WORD}"
+	fi
+
+	return "0"
+}
+
+words_info() {
+	local WORD_ID="${1}"
+
+	if [[ -z "${WORD_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_WORD_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! word_exists "${WORD_ID}"; then
+		echo -e "${BOOKED_WORD_NOT_FOUND} ${WORD_ID}"
+		return "1"
+	fi
+
+	echo -e "\n${BOOKED_HEADER_WORDS_INFO}\n"
+
+	query_database "${BOOKED_DB}" "$(printf "${SQL_WORD_INFO}" "${WORD_ID}")"
+}
+
+words_add() {
+	local WORD=""
+	local LANGUAGE=""
+	local DESCRIPTION=""
+	local TAGS=""
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--word)
+				WORD="${2}"
+				shift "2"
+			;;
+			--language)
+				LANGUAGE="${2}"
+				shift "2"
+			;;
+			--description)
+				DESCRIPTION="${2}"
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				shift "2"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	if [[ -z "${WORD}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_WORD_REQUIRED}"
+		return "1"
+	fi
+
+	WORD=$(sanitize_sql "${WORD}")
+
+	if [[ -n "${LANGUAGE}" ]]; then
+		LANGUAGE=$(sanitize_sql "${LANGUAGE}")
+	fi
+
+	if [[ -n "${DESCRIPTION}" ]]; then
+		DESCRIPTION=$(sanitize_sql "${DESCRIPTION}")
+	fi
+
+	if [[ -z "${LANGUAGE}" ]]; then
+		LANGUAGE="NULL"
+	else
+		LANGUAGE="'${LANGUAGE}'"
+	fi
+
+	if [[ -z "${DESCRIPTION}" ]]; then
+		DESCRIPTION="NULL"
+	else
+		DESCRIPTION="'${DESCRIPTION}'"
+	fi
+
+	local FORMATTED_QUERY=$(printf "${SQL_WORD_ADD}" "${WORD}" "${LANGUAGE}" "${DESCRIPTION}")
+	local WORD_ID=$(sqlite3 "${BOOKED_DB}" "${FORMATTED_QUERY}" 2> "/dev/null")
+
+	if [[ "${?}" -ne "0" || -z "${WORD_ID}" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	if [[ -n "${TAGS}" && -n "${WORD_ID}" ]]; then
+		process_tags "${WORD_ID}" "${TAGS}" "word"
+	fi
+
+	echo -e "${BOOKED_WORD_ADDED} ${WORD_ID}"
+	return "0"
+}
+
+words_update() {
+	local WORD_ID="${1}"
+
+	shift
+
+	if [[ -z "${WORD_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_WORD_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! word_exists "${WORD_ID}"; then
+		echo -e "${BOOKED_WORD_NOT_FOUND} ${WORD_ID}"
+		return "1"
+	fi
+
+	local SET_CLAUSES=""
+	local TAGS=""
+	local UPDATE_TAGS="0"
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--word)
+				local ESCAPED_WORD=$(sanitize_sql "${2}")
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				SET_CLAUSES="${SET_CLAUSES}word = '${ESCAPED_WORD}'"
+
+				shift "2"
+			;;
+			--language)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${2}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}language = NULL"
+				else
+					local ESCAPED_LANGUAGE=$(sanitize_sql "${2}")
+					SET_CLAUSES="${SET_CLAUSES}language = '${ESCAPED_LANGUAGE}'"
+				fi
+
+				shift "2"
+			;;
+			--description)
+				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -z "${2}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}description = NULL"
+				else
+					local ESCAPED_DESCRIPTION=$(sanitize_sql "${2}")
+					SET_CLAUSES="${SET_CLAUSES}description = '${ESCAPED_DESCRIPTION}'"
+				fi
+
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				UPDATE_TAGS="1"
+
+				shift "2"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	if [[ -n "${SET_CLAUSES}" ]]; then
+		local FORMATTED_QUERY=$(printf "${SQL_WORD_UPDATE}" "${SET_CLAUSES}" "${WORD_ID}")
+		sqlite3 "${BOOKED_DB}" "${FORMATTED_QUERY}" 2> "/dev/null"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_ERROR}"
+			return "1"
+		fi
+	fi
+
+	if [[ "${UPDATE_TAGS}" -eq "1" ]]; then
+		clear_tags "${WORD_ID}" "word"
+		if [[ -n "${TAGS}" ]]; then
+			process_tags "${WORD_ID}" "${TAGS}" "word"
+		fi
+	fi
+
+	echo -e "${BOOKED_WORD_UPDATED} ${WORD_ID}"
+	return "0"
+}
+
+words_search() {
+	local WORD=""
+	local LANGUAGE=""
+	local DESCRIPTION=""
+	local TAGS=""
+
+	while [[ "${#}" -gt "0" ]]; do
+		case "${1}" in
+			--word)
+				WORD="${2}"
+				shift "2"
+			;;
+			--language)
+				LANGUAGE="${2}"
+				shift "2"
+			;;
+			--description)
+				DESCRIPTION="${2}"
+				shift "2"
+			;;
+			--tags)
+				TAGS="${2}"
+				shift "2"
+			;;
+			*)
+				echo -e "${BOOKED_PARAMETER_INVALID} ${1}"
+				return "1"
+			;;
+		esac
+	done
+
+	local WHERE_CLAUSES=""
+
+	if [[ -n "${WORD}" ]]; then
+		local ESCAPED_WORD=$(sanitize_sql "${WORD}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}words.word LIKE '%${ESCAPED_WORD}%'"
+	fi
+
+	if [[ -n "${LANGUAGE}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		local ESCAPED_LANGUAGE=$(sanitize_sql "${LANGUAGE}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}words.language LIKE '%${ESCAPED_LANGUAGE}%'"
+	fi
+
+	if [[ -n "${DESCRIPTION}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		local ESCAPED_DESCRIPTION=$(sanitize_sql "${DESCRIPTION}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}words.description LIKE '%${ESCAPED_DESCRIPTION}%'"
+	fi
+
+	if [[ -n "${TAGS}" ]]; then
+		local SANITIZED_TAGS=$(sanitize_tags "${TAGS}")
+		IFS="," read -ra TAG_ARRAY <<< "${SANITIZED_TAGS}"
+
+		for TAG in "${TAG_ARRAY[@]}"; do
+			if [[ -z "${TAG}" ]]; then
+				continue
+			fi
+
+			local ESCAPED_TAG=$(sanitize_sql "${TAG}")
+
+			if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+			WHERE_CLAUSES="${WHERE_CLAUSES}words.id IN (
+				SELECT word_tags.word_id FROM word_tags
+				JOIN tags ON word_tags.tag_id = tags.id
+				WHERE tags.name = '${ESCAPED_TAG}'
+			)"
+		done
+	fi
+
+	local QUERY="${SQL_WORDS_SEARCH_BASE}"
+
+	if [[ -n "${WHERE_CLAUSES}" ]]; then
+		QUERY="${QUERY} WHERE ${WHERE_CLAUSES}"
+	fi
+
+	QUERY="${QUERY} ORDER BY words.id"
+
+	echo -e "\n${BOOKED_HEADER_WORDS_SEARCH}\n"
+
+	local RESULTS="$(query_database "${BOOKED_DB}" "${QUERY}")"
+
+	if [[ -z "${RESULTS}" ]]; then
+		echo -e "${BOOKED_SEARCH_WORDS_NO_RESULTS}"
+	else
+		echo "${RESULTS}"
+	fi
+}
+
+words_delete() {
+	local WORD_ID="${1}"
+
+	if [[ -z "${WORD_ID}" ]]; then
+		echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_WORD_ID_REQUIRED}"
+		return "1"
+	fi
+
+	if ! word_exists "${WORD_ID}"; then
+		echo -e "${BOOKED_WORD_NOT_FOUND} ${WORD_ID}"
+		return "1"
+	fi
+
+	sqlite3 "${BOOKED_DB}" "$(printf "${SQL_WORD_DELETE}" "${WORD_ID}")" 2> "/dev/null"
+
+	if [[ "${?}" -ne "0" ]]; then
+		echo -e "${BOOKED_DB_ERROR}"
+		return "1"
+	fi
+
+	echo -e "${BOOKED_WORD_DELETED} ${WORD_ID}"
+	return "0"
+}
+
+tags_list() {
+	local RESOURCE_TYPE="${1}"
+
+	if [[ "${RESOURCE_TYPE}" == "books" ]]; then
+		echo -e "\n${BOOKED_HEADER_TAGS_BOOKS}\n"
+		local RESULTS="$(query_database "${BOOKED_DB}" "${SQL_TAGS_BOOKS}")"
+		if [[ -z "${RESULTS}" ]]; then
+			echo -e "${BOOKED_TAGS_BOOKS_NO_RESULTS}"
+		else
+			echo "${RESULTS}"
+		fi
+	elif [[ "${RESOURCE_TYPE}" == "bookmarks" ]]; then
+		echo -e "\n${BOOKED_HEADER_TAGS_BOOKMARKS}\n"
+		local RESULTS="$(query_database "${BOOKED_DB}" "${SQL_TAGS_BOOKMARKS}")"
+		if [[ -z "${RESULTS}" ]]; then
+			echo -e "${BOOKED_TAGS_BOOKMARKS_NO_RESULTS}"
+		else
+			echo "${RESULTS}"
+		fi
+	elif [[ "${RESOURCE_TYPE}" == "texts" ]]; then
+		echo -e "\n${BOOKED_HEADER_TAGS_TEXTS}\n"
+		local RESULTS="$(query_database "${BOOKED_DB}" "${SQL_TAGS_TEXTS}")"
+		if [[ -z "${RESULTS}" ]]; then
+			echo -e "${BOOKED_TAGS_TEXTS_NO_RESULTS}"
+		else
+			echo "${RESULTS}"
+		fi
+	elif [[ "${RESOURCE_TYPE}" == "text-notes" ]]; then
+		echo -e "\n${BOOKED_HEADER_TAGS_TEXT_NOTES}\n"
+		local RESULTS="$(query_database "${BOOKED_DB}" "${SQL_TAGS_TEXT_NOTES}")"
+		if [[ -z "${RESULTS}" ]]; then
+			echo -e "${BOOKED_TAGS_TEXT_NOTES_NO_RESULTS}"
+		else
+			echo "${RESULTS}"
+		fi
+	elif [[ "${RESOURCE_TYPE}" == "quotations" ]]; then
+		echo -e "\n${BOOKED_HEADER_TAGS_QUOTATIONS}\n"
+		local RESULTS="$(query_database "${BOOKED_DB}" "${SQL_TAGS_QUOTATIONS}")"
+		if [[ -z "${RESULTS}" ]]; then
+			echo -e "${BOOKED_TAGS_QUOTATIONS_NO_RESULTS}"
+		else
+			echo "${RESULTS}"
+		fi
+	elif [[ "${RESOURCE_TYPE}" == "words" ]]; then
+		echo -e "\n${BOOKED_HEADER_TAGS_WORDS}\n"
+		local RESULTS="$(query_database "${BOOKED_DB}" "${SQL_TAGS_WORDS}")"
+		if [[ -z "${RESULTS}" ]]; then
+			echo -e "${BOOKED_TAGS_WORDS_NO_RESULTS}"
+		else
+			echo "${RESULTS}"
+		fi
+	fi
+}
+
+export_shell_script() {
+	local EXPORT_FILE="${1}"
+
+	{
+		echo "#!/bin/bash"
+		echo ""
+
+		sqlite3 "${BOOKED_DB}" "
+		SELECT 'booked books add' ||
+			' --title \"' || REPLACE(title, '\"', '\\\"') || '\"' ||
+			CASE WHEN edition IS NOT NULL AND edition != '' THEN ' --edition \"' || REPLACE(edition, '\"', '\\\"') || '\"' ELSE '' END ||
+			CASE WHEN year IS NOT NULL THEN ' --year \"' || year || '\"' ELSE '' END ||
+			CASE WHEN isbn10 IS NOT NULL AND isbn10 != '' THEN ' --isbn10 \"' || isbn10 || '\"' ELSE '' END ||
+			CASE WHEN isbn13 IS NOT NULL AND isbn13 != '' THEN ' --isbn13 \"' || isbn13 || '\"' ELSE '' END ||
+			CASE WHEN owned = 1 THEN ' --owned' ELSE '' END ||
+			CASE WHEN read = 1 THEN ' --read' ELSE '' END ||
+			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = books.id ORDER BY t.name) IS NOT NULL
+			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = books.id ORDER BY t.name) || '\"'
+			ELSE '' END
+		FROM books ORDER BY id;"
+
+		sqlite3 "${BOOKED_DB}" "
+		SELECT 'booked bookmarks add' ||
+			' --book \"' || book_id || '\"' ||
+			CASE WHEN chapter IS NOT NULL AND chapter != '' THEN ' --chapter \"' || REPLACE(chapter, '\"', '\\\"') || '\"' ELSE '' END ||
+			CASE WHEN page IS NOT NULL THEN ' --page \"' || page || '\"' ELSE '' END ||
+			CASE WHEN description IS NOT NULL AND description != '' THEN ' --description \"' || REPLACE(description, '\"', '\\\"') || '\"' ELSE '' END ||
+			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',') FROM bookmark_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.bookmark_id = bookmarks.id ORDER BY t.name) IS NOT NULL
+			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',') FROM bookmark_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.bookmark_id = bookmarks.id ORDER BY t.name) || '\"'
+			ELSE '' END
+		FROM bookmarks ORDER BY id;"
+
+		sqlite3 "${BOOKED_DB}" "
+		SELECT 'booked texts add' ||
+			' --title \"' || REPLACE(title, '\"', '\\\"') || '\"' ||
+			' --author \"' || REPLACE(author, '\"', '\\\"') || '\"' ||
+			CASE WHEN year IS NOT NULL THEN ' --year \"' || year || '\"' ELSE '' END ||
+			CASE WHEN url IS NOT NULL AND url != '' THEN ' --url \"' || REPLACE(url, '\"', '\\\"') || '\"' ELSE '' END ||
+			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',') FROM text_tags tt JOIN tags t ON tt.tag_id = t.id WHERE tt.text_id = texts.id ORDER BY t.name) IS NOT NULL
+			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',') FROM text_tags tt JOIN tags t ON tt.tag_id = t.id WHERE tt.text_id = texts.id ORDER BY t.name) || '\"'
+			ELSE '' END
+		FROM texts ORDER BY id;"
+
+		sqlite3 "${BOOKED_DB}" "
+		SELECT 'booked text-notes add' ||
+			' --text \"' || text_id || '\"' ||
+			CASE WHEN section IS NOT NULL AND section != '' THEN ' --section \"' || REPLACE(section, '\"', '\\\"') || '\"' ELSE '' END ||
+			CASE WHEN page IS NOT NULL THEN ' --page \"' || page || '\"' ELSE '' END ||
+			CASE WHEN description IS NOT NULL AND description != '' THEN ' --description \"' || REPLACE(description, '\"', '\\\"') || '\"' ELSE '' END ||
+			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',') FROM text_note_tags tnt JOIN tags t ON tnt.tag_id = t.id WHERE tnt.text_note_id = text_notes.id ORDER BY t.name) IS NOT NULL
+			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',') FROM text_note_tags tnt JOIN tags t ON tnt.tag_id = t.id WHERE tnt.text_note_id = text_notes.id ORDER BY t.name) || '\"'
+			ELSE '' END
+		FROM text_notes ORDER BY id;"
+
+		sqlite3 "${BOOKED_DB}" "
+		SELECT 'booked quotations add' ||
+			' --quotation \"' || REPLACE(quotation, '\"', '\\\"') || '\"' ||
+			' --author \"' || REPLACE(author, '\"', '\\\"') || '\"' ||
+			CASE WHEN year IS NOT NULL THEN ' --year \"' || year || '\"' ELSE '' END ||
+			CASE WHEN description IS NOT NULL AND description != '' THEN ' --description \"' || REPLACE(description, '\"', '\\\"') || '\"' ELSE '' END ||
+			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',') FROM quotation_tags qt JOIN tags t ON qt.tag_id = t.id WHERE qt.quotation_id = quotations.id ORDER BY t.name) IS NOT NULL
+			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',') FROM quotation_tags qt JOIN tags t ON qt.tag_id = t.id WHERE qt.quotation_id = quotations.id ORDER BY t.name) || '\"'
+			ELSE '' END
+		FROM quotations ORDER BY id;"
+
+		sqlite3 "${BOOKED_DB}" "
+		SELECT 'booked words add' ||
+			' --word \"' || REPLACE(word, '\"', '\\\"') || '\"' ||
+			CASE WHEN language IS NOT NULL AND language != '' THEN ' --language \"' || REPLACE(language, '\"', '\\\"') || '\"' ELSE '' END ||
+			CASE WHEN description IS NOT NULL AND description != '' THEN ' --description \"' || REPLACE(description, '\"', '\\\"') || '\"' ELSE '' END ||
+			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',') FROM word_tags wt JOIN tags t ON wt.tag_id = t.id WHERE wt.word_id = words.id ORDER BY t.name) IS NOT NULL
+			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',') FROM word_tags wt JOIN tags t ON wt.tag_id = t.id WHERE wt.word_id = words.id ORDER BY t.name) || '\"'
+			ELSE '' END
+		FROM words ORDER BY id;"
+	} > "${EXPORT_FILE}"
+
+	chmod +x "${EXPORT_FILE}"
+}
+
+export_database() {
+	local BOOKED_DB_EXPORT_FORMAT="${1:-db}"
+
+	case "${BOOKED_DB_EXPORT_FORMAT}" in
+		sh|sql|sqlite|db) ;;
+		*)
+			echo -e "${BOOKED_DB_EXPORT_INVALID} ${BOOKED_DB_EXPORT_FORMAT}"
+			echo -e "${BOOKED_DB_FORMATS}"
+			return "1"
+		;;
+	esac
+
+	local BOOKED_DB_EXPORT_PATH="${BOOKED_DATA}/export"
+
+	if [[ ! -d "${BOOKED_DB_EXPORT_PATH}" ]]; then
+		mkdir --parents "${BOOKED_DB_EXPORT_PATH}"
+
+		if [[ "${?}" -ne "0" ]]; then
+			echo -e "${BOOKED_DB_EXPORT_PATH_CREATE_FAILED}"
+			return "1"
+		fi
+	fi
+
+	local BOOKED_DB_EXPORT_FILE="${BOOKED_DB_EXPORT_PATH}/${BOOKED_NAME}-${BOOKED_CURRENT_TIMESTAMP}.${BOOKED_DB_EXPORT_FORMAT}"
+
+	case "${BOOKED_DB_EXPORT_FORMAT}" in
+		sh)
+			export_shell_script "${BOOKED_DB_EXPORT_FILE}"
+		;;
+		sql)
+			sqlite3 "${BOOKED_DB}" ".dump" > "${BOOKED_DB_EXPORT_FILE}"
+		;;
+		sqlite|db)
+			sqlite3 "${BOOKED_DB}" ".backup ${BOOKED_DB_EXPORT_FILE}"
+		;;
+		*)
+			echo -e "${BOOKED_DB_EXPORT_INVALID} ${BOOKED_DB_EXPORT_FORMAT}"
+			echo -e "${BOOKED_DB_FORMATS}"
+			return "1"
+		;;
+	esac
+
+	if [[ "${?}" -eq "0" ]]; then
+		echo -e "${BOOKED_DB_EXPORT} ${BOOKED_DB_EXPORT_FILE}"
+		return "0"
+	else
+		echo -e "${BOOKED_DB_EXPORT_FAILED}"
+		return "1"
+	fi
+}
+
+import_database() {
+	local IMPORT_FILE="${1}"
+	local TEMP_DB="${BOOKED_DB}.temp"
+
+	if [[ ! -f "${IMPORT_FILE}" || ! -r "${IMPORT_FILE}" ]]; then
+		echo -e "${BOOKED_DB_IMPORT_NOT_FOUND}"
+		return "1"
+	fi
+
+	local FILE_EXT="${IMPORT_FILE##*.}"
+
+	case "${FILE_EXT}" in
+		sqlite|db)
+			cp "${BOOKED_DB}" "${BOOKED_DB}.export"
+
+			if cp "${IMPORT_FILE}" "${TEMP_DB}"; then
+				if mv "${TEMP_DB}" "${BOOKED_DB}"; then
+					echo -e "${BOOKED_DB_IMPORT} ${BOOKED_DB_IMPORT_SQLITE}"
+					return "0"
+				else
+					echo -e "${BOOKED_DB_IMPORT_FAILED}"
+					return "1"
+				fi
+			else
+				echo -e "${BOOKED_DB_IMPORT_FAILED}"
+				return "1"
+			fi
+		;;
+		sql)
+			cp "${BOOKED_DB}" "${BOOKED_DB}.export"
+
+			sqlite3 "${TEMP_DB}" ""
+
+			if cat "${IMPORT_FILE}" | sqlite3 "${TEMP_DB}"; then
+				if mv "${TEMP_DB}" "${BOOKED_DB}"; then
+					echo -e "${BOOKED_DB_IMPORT} ${BOOKED_DB_IMPORT_SQL}"
+					return "0"
+				else
+					echo -e "${BOOKED_DB_IMPORT_FAILED}"
+					return "1"
+				fi
+			else
+				rm -f "${TEMP_DB}"
+				echo -e "${BOOKED_DB_IMPORT_FAILED}"
+				return "1"
+			fi
+		;;
+		*)
+			echo -e "${BOOKED_DB_IMPORT_INVALID}"
+			return "1"
+		;;
+	esac
+}
+
+main() {
+	init_database
+
+	if [[ "${#}" -lt "1" ]]; then
+		usage
+		return "1"
+	fi
+
+	local COMMAND="${1}"
+	shift
+
+	case "${COMMAND}" in
+		help)
+			usage
+			return "0"
+		;;
+		books)
+			if [[ "${#}" -lt "1" ]]; then
+				printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "books"
+				return "1"
+			fi
+
+			local SUBCOMMAND="${1}"
+			shift
+
+			case "${SUBCOMMAND}" in
+				list)
+					books_list
+				;;
+				info)
+					books_info "${@}"
+				;;
+				add)
+					books_add "${@}"
+				;;
+				update)
+					books_update "${@}"
+				;;
+				search)
+					books_search "${@}"
+				;;
+				delete)
+					books_delete "${@}"
+				;;
+				help)
+					books_help
+					return "0"
+				;;
+				*)
+					echo -e "${BOOKED_SUBCOMMAND_NOT_FOUND} ${SUBCOMMAND}"
+					printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "books"
+					return "1"
+				;;
+			esac
+		;;
+		bookmarks)
+			if [[ "${#}" -lt "1" ]]; then
+				printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "bookmarks"
+				return "1"
+			fi
+
+			local SUBCOMMAND="${1}"
+
+			shift
+
+			case "${SUBCOMMAND}" in
+				list)
+					bookmarks_list
+				;;
+				info)
+					bookmarks_info "${@}"
+				;;
+				add)
+					bookmarks_add "${@}"
+				;;
+				update)
+					bookmarks_update "${@}"
+				;;
+				search)
+					bookmarks_search "${@}"
+				;;
+				delete)
+					bookmarks_delete "${@}"
+				;;
+				help)
+					bookmarks_help
+					return "0"
+				;;
+				*)
+					echo -e "${BOOKED_SUBCOMMAND_NOT_FOUND} ${SUBCOMMAND}"
+					printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "bookmarks"
+					return "1"
+				;;
+			esac
+		;;
+		texts)
+			if [[ "${#}" -lt "1" ]]; then
+				printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "texts"
+				return "1"
+			fi
+
+			local SUBCOMMAND="${1}"
+			shift
+
+			case "${SUBCOMMAND}" in
+				list)
+					texts_list
+				;;
+				info)
+					texts_info "${@}"
+				;;
+				add)
+					texts_add "${@}"
+				;;
+				update)
+					texts_update "${@}"
+				;;
+				search)
+					texts_search "${@}"
+				;;
+				delete)
+					texts_delete "${@}"
+				;;
+				help)
+					texts_help
+					return "0"
+				;;
+				*)
+					echo -e "${BOOKED_SUBCOMMAND_NOT_FOUND} ${SUBCOMMAND}"
+					printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "texts"
+					return "1"
+				;;
+			esac
+		;;
+		text-notes)
+			if [[ "${#}" -lt "1" ]]; then
+				printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "text-notes"
+				return "1"
+			fi
+
+			local SUBCOMMAND="${1}"
+			shift
+
+			case "${SUBCOMMAND}" in
+				list)
+					text_notes_list
+				;;
+				info)
+					text_notes_info "${@}"
+				;;
+				add)
+					text_notes_add "${@}"
+				;;
+				update)
+					text_notes_update "${@}"
+				;;
+				search)
+					text_notes_search "${@}"
+				;;
+				delete)
+					text_notes_delete "${@}"
+				;;
+				help)
+					text_notes_help
+					return "0"
+				;;
+				*)
+					echo -e "${BOOKED_SUBCOMMAND_NOT_FOUND} ${SUBCOMMAND}"
+					printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "text-notes"
+					return "1"
+				;;
+			esac
+		;;
+		quotations)
+			if [[ "${#}" -lt "1" ]]; then
+				printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "quotations"
+				return "1"
+			fi
+
+			local SUBCOMMAND="${1}"
+			shift
+
+			case "${SUBCOMMAND}" in
+				list)
+					quotations_list
+				;;
+				random)
+					quotations_random
+				;;
+				info)
+					quotations_info "${@}"
+				;;
+				add)
+					quotations_add "${@}"
+				;;
+				update)
+					quotations_update "${@}"
+				;;
+				search)
+					quotations_search "${@}"
+				;;
+				delete)
+					quotations_delete "${@}"
+				;;
+				help)
+					quotations_help
+					return "0"
+				;;
+				*)
+					echo -e "${BOOKED_SUBCOMMAND_NOT_FOUND} ${SUBCOMMAND}"
+					printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "quotations"
+					return "1"
+				;;
+			esac
+		;;
+		words)
+			if [[ "${#}" -lt "1" ]]; then
+				printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "words"
+				return "1"
+			fi
+
+			local SUBCOMMAND="${1}"
+			shift
+
+			case "${SUBCOMMAND}" in
+				list)
+					words_list
+				;;
+				random)
+					words_random
+				;;
+				info)
+					words_info "${@}"
+				;;
+				add)
+					words_add "${@}"
+				;;
+				update)
+					words_update "${@}"
+				;;
+				search)
+					words_search "${@}"
+				;;
+				delete)
+					words_delete "${@}"
+				;;
+				help)
+					words_help
+					return "0"
+				;;
+				*)
+					echo -e "${BOOKED_SUBCOMMAND_NOT_FOUND} ${SUBCOMMAND}"
+					printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "words"
+					return "1"
+				;;
+			esac
+		;;
+		tags)
+			if [[ "${#}" -lt "1" ]]; then
+				printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "tags"
+				return "1"
+			fi
+
+			local SUBCOMMAND="${1}"
+			shift
+
+			case "${SUBCOMMAND}" in
+				books|bookmarks|texts|text-notes|quotations|words)
+					tags_list "${SUBCOMMAND}"
+				;;
+				help)
+					tags_help
+					return "0"
+				;;
+				*)
+					echo -e "${BOOKED_SUBCOMMAND_NOT_FOUND} ${SUBCOMMAND}"
+					printf "${BOOKED_HELP_COMMAND_MESSAGE}\n" "tags"
+					return "1"
+				;;
+			esac
+		;;
+		export)
+			export_database "${@}"
+		;;
+		import)
+			if [[ "${#}" -lt "1" ]]; then
+				echo -e "${BOOKED_PARAMETER_MISSING_REQUIRED} ${BOOKED_FILE_PATH_REQUIRED}"
+				echo -e "${BOOKED_HELP_GENERAL_MESSAGE}"
+				return "1"
+			fi
+
+			import_database "${1}"
+		;;
+		*)
+			echo -e "${BOOKED_COMMAND_NOT_FOUND} ${COMMAND}"
+			echo -e "${BOOKED_HELP_GENERAL_MESSAGE}"
+			return "1"
+		;;
+	esac
+}
+
+main "${@}"

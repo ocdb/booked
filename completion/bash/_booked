@@ -1,0 +1,163 @@
+# bash-completions/_booked
+
+_BOOKED_LANGUAGES=(
+	"English"
+	"Afrikaans"
+	"Arabic"
+	"Armenian"
+	"Basque"
+	"Bengali"
+	"Bulgarian"
+	"Catalan"
+	"Chinese"
+	"Croatian"
+	"Czech"
+	"Danish"
+	"Dutch"
+	"Esperanto"
+	"Estonian"
+	"Finnish"
+	"French"
+	"German"
+	"Greek"
+	"Hebrew"
+	"Hindi"
+	"Hungarian"
+	"Icelandic"
+	"Indonesian"
+	"Irish"
+	"Italian"
+	"Japanese"
+	"Korean"
+	"Latin"
+	"Latvian"
+	"Lithuanian"
+	"Malay"
+	"Norwegian"
+	"Persian"
+	"Polish"
+	"Portuguese"
+	"Romanian"
+	"Russian"
+	"Sanskrit"
+	"Serbian"
+	"Slovak"
+	"Spanish"
+	"Swahili"
+	"Swedish"
+	"Thai"
+	"Turkish"
+	"Ukrainian"
+	"Urdu"
+	"Vietnamese"
+	"Welsh"
+)
+
+_booked() {
+	local cur prev words cword
+	_init_completion || return
+
+	case "${cword}" in
+		1)
+			COMPREPLY=($(compgen -W "books bookmarks texts text-notes quotations words tags export import help" -- "${cur}"))
+		;;
+		2)
+			case "${words[1]}" in
+				books|bookmarks|texts|text-notes)
+					COMPREPLY=($(compgen -W "list info add update search delete help" -- "${cur}"))
+				;;
+				quotations|words)
+					COMPREPLY=($(compgen -W "list random info add update search delete help" -- "${cur}"))
+				;;
+				tags)
+					COMPREPLY=($(compgen -W "books bookmarks texts text-notes quotations words" -- "${cur}"))
+				;;
+				export)
+					COMPREPLY=($(compgen -W "sh sql sqlite db" -- "${cur}"))
+				;;
+				import)
+					_filedir '@(sql|sqlite|db)'
+				;;
+			esac
+		;;
+		*)
+			local cmd_subcmd="${words[1]}_${words[2]}"
+
+			case "${cmd_subcmd}" in
+				books_info|books_delete|bookmarks_info|bookmarks_delete|texts_info|texts_delete|text-notes_info|text-notes_delete|quotations_info|quotations_delete|words_info|words_delete)
+					if [[ "${cword}" -eq "3" ]]; then
+						COMPREPLY=()
+					fi
+				;;
+				books_add|books_search)
+					COMPREPLY=($(compgen -W "--title --edition --year --isbn10 --isbn13 --owned --unowned --read --unread --tags" -- "${cur}"))
+				;;
+				books_update)
+					if [[ "${cword}" -eq "3" ]]; then
+						COMPREPLY=()
+					else
+						COMPREPLY=($(compgen -W "--title --edition --year --isbn10 --isbn13 --owned --unowned --read --unread --tags" -- "${cur}"))
+					fi
+				;;
+				bookmarks_add|bookmarks_search)
+					COMPREPLY=($(compgen -W "--book --chapter --page --description --tags" -- "${cur}"))
+				;;
+				bookmarks_update)
+					if [[ "${cword}" -eq "3" ]]; then
+						COMPREPLY=()
+					else
+						COMPREPLY=($(compgen -W "--book --chapter --page --description --tags" -- "${cur}"))
+					fi
+				;;
+				texts_add|texts_search)
+					COMPREPLY=($(compgen -W "--title --author --year --url --tags" -- "${cur}"))
+				;;
+				texts_update)
+					if [[ "${cword}" -eq "3" ]]; then
+						COMPREPLY=()
+					else
+						COMPREPLY=($(compgen -W "--title --author --year --url --tags" -- "${cur}"))
+					fi
+				;;
+				text-notes_add|text-notes_search)
+					COMPREPLY=($(compgen -W "--text --section --page --description --tags" -- "${cur}"))
+				;;
+				text-notes_update)
+					if [[ "${cword}" -eq "3" ]]; then
+						COMPREPLY=()
+					else
+						COMPREPLY=($(compgen -W "--text --section --page --description --tags" -- "${cur}"))
+					fi
+				;;
+				quotations_add|quotations_search)
+					COMPREPLY=($(compgen -W "--quotation --author --year --description --tags" -- "${cur}"))
+				;;
+				quotations_update)
+					if [[ "${cword}" -eq "3" ]]; then
+						COMPREPLY=()
+					else
+						COMPREPLY=($(compgen -W "--quotation --author --year --description --tags" -- "${cur}"))
+					fi
+				;;
+				words_add|words_search)
+					if [[ "${prev}" == "--language" ]]; then
+						COMPREPLY=($(compgen -W "${_BOOKED_LANGUAGES[*]}" -- "${cur}"))
+					else
+						COMPREPLY=($(compgen -W "--word --language --description --tags" -- "${cur}"))
+					fi
+				;;
+				words_update)
+					if [[ "${cword}" -eq "3" ]]; then
+						COMPREPLY=()
+					elif [[ "${prev}" == "--language" ]]; then
+						COMPREPLY=($(compgen -W "${_BOOKED_LANGUAGES[*]}" -- "${cur}"))
+					else
+						COMPREPLY=($(compgen -W "--word --language --description --tags" -- "${cur}"))
+					fi
+				;;
+			esac
+		;;
+	esac
+}
+
+complete -F _booked booked

@@ -1,0 +1,520 @@
+#compdef booked
+
+#
+# ZDOTDIR/completion/_booked
+#
+
+_languages=(
+	"English"
+	"Afrikaans"
+	"Arabic"
+	"Armenian"
+	"Basque"
+	"Bengali"
+	"Bulgarian"
+	"Catalan"
+	"Chinese"
+	"Croatian"
+	"Czech"
+	"Danish"
+	"Dutch"
+	"Esperanto"
+	"Estonian"
+	"Finnish"
+	"French"
+	"German"
+	"Greek"
+	"Hebrew"
+	"Hindi"
+	"Hungarian"
+	"Icelandic"
+	"Indonesian"
+	"Irish"
+	"Italian"
+	"Japanese"
+	"Korean"
+	"Latin"
+	"Latvian"
+	"Lithuanian"
+	"Malay"
+	"Norwegian"
+	"Persian"
+	"Polish"
+	"Portuguese"
+	"Romanian"
+	"Russian"
+	"Sanskrit"
+	"Serbian"
+	"Slovak"
+	"Spanish"
+	"Swahili"
+	"Swedish"
+	"Thai"
+	"Turkish"
+	"Ukrainian"
+	"Urdu"
+	"Vietnamese"
+	"Welsh"
+)
+
+_booked() {
+	local curcontext="${curcontext}" state line
+	typeset -A opt_args
+
+	_arguments -C \
+		"1: :->commands" \
+		"2: :->subcommands" \
+		"*: :->args"
+
+	case "${state}" in
+		commands)
+			local -a commands
+			commands=(
+				"books"
+				"bookmarks"
+				"texts"
+				"text-notes"
+				"quotations"
+				"words"
+				"tags"
+				"export"
+				"import"
+				"help"
+			)
+			_describe -t commands "command" commands
+		;;
+		subcommands)
+			case "${line[1]}" in
+				books)
+					local -a subcmds
+					subcmds=(
+						"list"
+						"info"
+						"add"
+						"update"
+						"search"
+						"delete"
+						"help"
+					)
+					_describe -t subcmds "subcommand" subcmds
+				;;
+				bookmarks)
+					local -a subcmds
+					subcmds=(
+						"list"
+						"info"
+						"add"
+						"update"
+						"search"
+						"delete"
+						"help"
+					)
+					_describe -t subcmds "subcommand" subcmds
+				;;
+				texts)
+					local -a subcmds
+					subcmds=(
+						"list"
+						"info"
+						"add"
+						"update"
+						"search"
+						"delete"
+						"help"
+					)
+					_describe -t subcmds "subcommand" subcmds
+				;;
+				text-notes)
+					local -a subcmds
+					subcmds=(
+						"list"
+						"info"
+						"add"
+						"update"
+						"search"
+						"delete"
+						"help"
+					)
+					_describe -t subcmds "subcommand" subcmds
+				;;
+				quotations)
+					local -a subcmds
+					subcmds=(
+						"list"
+						"random"
+						"info"
+						"add"
+						"update"
+						"search"
+						"delete"
+						"help"
+					)
+					_describe -t subcmds "subcommand" subcmds
+				;;
+				words)
+					local -a subcmds
+					subcmds=(
+						"list"
+						"random"
+						"info"
+						"add"
+						"update"
+						"search"
+						"delete"
+						"help"
+					)
+					_describe -t subcmds "subcommand" subcmds
+				;;
+				tags)
+					local -a subcmds
+					subcmds=(
+						"books"
+						"bookmarks"
+						"texts"
+						"text-notes"
+						"quotations"
+						"words"
+					)
+					_describe -t subcmds "subcommand" subcmds
+				;;
+				export)
+					local -a formats
+					formats=(
+						"sh"
+						"sql"
+						"sqlite"
+						"db"
+					)
+					_describe -t formats "format" formats
+				;;
+				import)
+					_files -g "*.{sql,sqlite,db}"
+				;;
+			esac
+		;;
+		args)
+			case "${line[1]}_${line[2]}" in
+				books_list)
+				;;
+				books_info)
+					_message "book ID"
+				;;
+				books_add)
+					local -a options
+					options=(
+						"--title"
+						"--edition"
+						"--year"
+						"--isbn10"
+						"--isbn13"
+						"--owned"
+						"--unowned"
+						"--read"
+						"--unread"
+						"--tags"
+					)
+					_describe -t options "option" options
+				;;
+				books_update)
+					if (( CURRENT == 3 )); then
+						_message "book ID"
+					else
+						local -a options
+						options=(
+							"--title"
+							"--edition"
+							"--year"
+							"--isbn10"
+							"--isbn13"
+							"--owned"
+							"--unowned"
+							"--read"
+							"--unread"
+							"--tags"
+						)
+						_describe -t options "option" options
+					fi
+				;;
+				books_search)
+					local -a options
+					options=(
+						"--title"
+						"--edition"
+						"--year"
+						"--isbn10"
+						"--isbn13"
+						"--owned"
+						"--unowned"
+						"--read"
+						"--unread"
+						"--tags"
+					)
+					_describe -t options "option" options
+				;;
+				books_delete)
+					_message "book ID"
+				;;
+				books_help)
+				;;
+				bookmarks_list)
+				;;
+				bookmarks_info)
+					_message "bookmark ID"
+				;;
+				bookmarks_add)
+					local -a options
+					options=(
+						"--book"
+						"--chapter"
+						"--page"
+						"--description"
+						"--tags"
+					)
+					_describe -t options "option" options
+				;;
+				bookmarks_update)
+					if (( CURRENT == 3 )); then
+						_message "bookmark ID"
+					else
+						local -a options
+						options=(
+							"--book"
+							"--chapter"
+							"--page"
+							"--description"
+							"--tags"
+						)
+						_describe -t options "option" options
+					fi
+				;;
+				bookmarks_search)
+					local -a options
+					options=(
+						"--book"
+						"--chapter"
+						"--page"
+						"--description"
+						"--tags"
+					)
+					_describe -t options "option" options
+				;;
+				bookmarks_delete)
+					_message "bookmark ID"
+				;;
+				bookmarks_help)
+				;;
+				texts_list)
+				;;
+				texts_info)
+					_message "text ID"
+				;;
+				texts_add)
+					local -a options
+					options=(
+						"--title"
+						"--author"
+						"--year"
+						"--url"
+						"--tags"
+					)
+					_describe -t options "option" options
+				;;
+				texts_update)
+					if (( CURRENT == 3 )); then
+						_message "text ID"
+					else
+						local -a options
+						options=(
+							"--title"
+							"--author"
+							"--year"
+							"--url"
+							"--tags"
+						)
+						_describe -t options "option" options
+					fi
+				;;
+				texts_search)
+					local -a options
+					options=(
+						"--title"
+						"--author"
+						"--year"
+						"--url"
+						"--tags"
+					)
+					_describe -t options "option" options
+				;;
+				texts_delete)
+					_message "text ID"
+				;;
+				texts_help)
+				;;
+				text-notes_list)
+				;;
+				text-notes_info)
+					_message "text note ID"
+				;;
+				text-notes_add)
+					local -a options
+					options=(
+						"--text"
+						"--section"
+						"--page"
+						"--description"
+						"--tags"
+					)
+					_describe -t options "option" options
+				;;
+				text-notes_update)
+					if (( CURRENT == 3 )); then
+						_message "text note ID"
+					else
+						local -a options
+						options=(
+							"--text"
+							"--section"
+							"--page"
+							"--description"
+							"--tags"
+						)
+						_describe -t options "option" options
+					fi
+				;;
+				text-notes_search)
+					local -a options
+					options=(
+						"--text"
+						"--section"
+						"--page"
+						"--description"
+						"--tags"
+					)
+					_describe -t options "option" options
+				;;
+				text-notes_delete)
+					_message "text note ID"
+				;;
+				text-notes_help)
+				;;
+				quotations_list)
+				;;
+				quotations_random)
+				;;
+				quotations_info)
+					_message "quotation ID"
+				;;
+				quotations_add)
+					local -a options
+					options=(
+						"--quotation"
+						"--author"
+						"--year"
+						"--description"
+						"--tags"
+					)
+					_describe -t options "option" options
+				;;
+				quotations_update)
+					if (( CURRENT == 3 )); then
+						_message "quotation ID"
+					else
+						local -a options
+						options=(
+							"--quotation"
+							"--author"
+							"--year"
+							"--description"
+							"--tags"
+						)
+						_describe -t options "option" options
+					fi
+				;;
+				quotations_search)
+					local -a options
+					options=(
+						"--quotation"
+						"--author"
+						"--year"
+						"--description"
+						"--tags"
+					)
+					_describe -t options "option" options
+				;;
+				quotations_delete)
+					_message "quotation ID"
+				;;
+				quotations_help)
+				;;
+				words_list)
+				;;
+				words_random)
+				;;
+				words_info)
+					_message "word ID"
+				;;
+				words_add)
+					case "${words[CURRENT-1]}" in
+						--language)
+							_describe -t languages "language" _languages
+						;;
+						*)
+							local -a options
+							options=(
+								"--word"
+								"--language"
+								"--description"
+								"--tags"
+							)
+							_describe -t options "option" options
+						;;
+					esac
+				;;
+				words_update)
+					if (( CURRENT == 3 )); then
+						_message "word ID"
+					else
+						case "${words[CURRENT-1]}" in
+							--language)
+								_describe -t languages "language" _languages
+							;;
+							*)
+								local -a options
+								options=(
+									"--word"
+									"--language"
+									"--description"
+									"--tags"
+								)
+								_describe -t options "option" options
+							;;
+						esac
+					fi
+				;;
+				words_search)
+					case "${words[CURRENT-1]}" in
+						--language)
+							_describe -t languages "language" _languages
+						;;
+						*)
+							local -a options
+							options=(
+								"--word"
+								"--language"
+								"--description"
+								"--tags"
+							)
+							_describe -t options "option" options
+						;;
+					esac
+				;;
+				words_delete)
+					_message "word ID"
+				;;
+				words_help)
+				;;
+			esac
+		;;
+	esac
+}
+_booked
