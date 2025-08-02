@@ -15,7 +15,7 @@ Commands:
 	quotations		Manage quotations
 	words			Manage words
 	tags			Indices of tags
-	help			Use "booked  help" for more information.
+	help			Use "booked help" for more information.
 
 Database:
 	export [format]		Create an export of the database. Supported formats: sh, sqlite, db (default)
