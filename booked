@@ -1221,7 +1221,7 @@ usage() {
 	printf "	quotations		Manage quotations\n"
 	printf "	words			Manage words\n"
 	printf "	tags			Indices of tags\n"
-	printf "	help			${BOOKED_HELP_COMMAND_MESSAGE}\n"
+	printf "	help			${BOOKED_HELP_GENERAL_MESSAGE}\n"
 	printf "\n"
 	database_help
 	printf "\n"
