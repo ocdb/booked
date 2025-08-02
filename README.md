@@ -15,11 +15,11 @@ Commands:
 	quotations		Manage quotations
 	words			Manage words
 	tags			Indices of tags
-	help			Use "booked help" for more information.
+	help			Use "booked  help" for more information.
 
 Database:
-	export [format]		Create an export of the database. Supported formats: sh, sql, sqlite, db (default)
-	import <file>		Import data from a file. Supported formats: sql, sqlite, db
+	export [format]		Create an export of the database. Supported formats: sh, sqlite, db (default)
+	import <file>		Import data from a file. Supported formats: sqlite, db
 
 Environment variables:
 	BOOKED_DATA		Specify path of booked data (default "${XDG_DATA_HOME}/booked"; "${HOME}/.local/share/booked")
@@ -34,6 +34,8 @@ Environment variables:
 ## Dependencies
 
 - bash
+- coreutils
+- sed
 - sqlite3
 
 ## License

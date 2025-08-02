@@ -71,10 +71,10 @@ _booked() {
 					COMPREPLY=($(compgen -W "books bookmarks texts text-notes quotations words" -- "${cur}"))
 				;;
 				export)
-					COMPREPLY=($(compgen -W "sh sql sqlite db" -- "${cur}"))
+					COMPREPLY=($(compgen -W "sh sqlite db" -- "${cur}"))
 				;;
 				import)
-					_filedir '@(sql|sqlite|db)'
+					_filedir '@(sqlite|db)'
 				;;
 			esac
 		;;

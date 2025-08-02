@@ -34,6 +34,9 @@ BOOKED_HELP_COMMAND_DESCRIPTION="Show this help message"
 BOOKED_CURRENT_YEAR="$(command date "+%Y")"
 BOOKED_CURRENT_TIMESTAMP="$(command date "+%s")"
 
+BOOKED_MAX_YEAR="9999"
+BOOKED_MAX_NUMERIC="999999999"
+
 BOOKED_MSG_ERROR="\e[31m[ERROR]\e[0m"
 BOOKED_MSG_ADDED="\e[32m[ADDED]\e[0m"
 BOOKED_MSG_UPDATED="\e[32m[UPDATED]\e[0m"
@@ -84,9 +87,8 @@ BOOKED_DB_IMPORT_FAILED="${BOOKED_MSG_ERROR} Import failed."
 BOOKED_DB_IMPORT_INVALID="${BOOKED_MSG_ERROR} Unsupported import format."
 BOOKED_DB_IMPORT_NOT_FOUND="${BOOKED_MSG_ERROR} Import file not found."
 BOOKED_DB_IMPORT_SQLITE="(SQLite)"
-BOOKED_DB_IMPORT_SQL="(SQL)"
-BOOKED_DB_FORMATS="Supported formats: sh, sql, sqlite, db (default)"
-BOOKED_DB_IMPORT_FORMATS="Supported formats: sql, sqlite, db"
+BOOKED_DB_FORMATS="Supported formats: sh, sqlite, db (default)"
+BOOKED_DB_IMPORT_FORMATS="Supported formats: sqlite, db"
 
 BOOKED_COMMAND_NOT_FOUND="${BOOKED_MSG_ERROR} Command not found:"
 BOOKED_SUBCOMMAND_NOT_FOUND="${BOOKED_MSG_ERROR} Subcommand not found:"
@@ -1260,7 +1262,6 @@ init_database() {
 	fi
 }
 
-
 query_database() {
 	local DB="${1}"
 	local QUERY="${2}"
@@ -1283,7 +1284,7 @@ plain_output() {
 	fi
 
 	local EXPECTED_FIELDS=""
-	local LINE_COUNT=0
+	local LINE_COUNT="0"
 
 	while IFS= read -r LINE; do
 		if [[ -z "${LINE}" ]]; then
@@ -1304,6 +1305,7 @@ plain_output() {
 			FIELD_ARRAY+=("${REMAINING%%|*}")
 			REMAINING="${REMAINING#*|}"
 		done
+
 		FIELD_ARRAY+=("${REMAINING}")
 
 		local PLAIN_LINE=""
@@ -1352,7 +1354,7 @@ rainbow_output() {
 	fi
 
 	local EXPECTED_FIELDS=""
-	local LINE_COUNT=0
+	local LINE_COUNT="0"
 
 	while IFS= read -r LINE; do
 		if [[ -z "${LINE}" ]]; then
@@ -1373,6 +1375,7 @@ rainbow_output() {
 			FIELD_ARRAY+=("${REMAINING%%|*}")
 			REMAINING="${REMAINING#*|}"
 		done
+
 		FIELD_ARRAY+=("${REMAINING}")
 
 		local COLORED_LINE=""
@@ -1403,7 +1406,53 @@ rainbow_output() {
 
 sanitize_sql() {
 	local INPUT="${1}"
+
 	printf "%s" "${INPUT}" | sed "s/'/''/g"
+}
+
+sanitize_query() {
+	local INPUT="${1}"
+
+	INPUT=$(printf "%s" "${INPUT}" | sed "s/'/''/g")
+	INPUT="${INPUT//\\/\\\\}"
+	INPUT="${INPUT//%/\\%}"
+	INPUT="${INPUT//_/\\_}"
+	INPUT="${INPUT//;/\\;}"
+
+	printf "%s" "${INPUT}"
+}
+
+sanitize_numeric() {
+	local INPUT="${1}"
+	local MAX_VALUE="${2:-${BOOKED_MAX_NUMERIC}}"
+
+	if [[ -z "${INPUT}" ]]; then
+		return "1"
+	fi
+
+	if [[ ! "${INPUT}" =~ ^[0-9]+$ ]]; then
+		return "1"
+	fi
+
+	if (( INPUT > MAX_VALUE )); then
+		return "1"
+	fi
+
+	printf "%s" "${INPUT}"
+}
+
+sanitize_boolean() {
+	local INPUT="${1}"
+
+	if [[ -z "${INPUT}" ]]; then
+		return "1"
+	fi
+
+	if [[ "${INPUT}" != "0" && "${INPUT}" != "1" ]]; then
+		return "1"
+	fi
+
+	printf "%s" "${INPUT}"
 }
 
 sanitize_isbn() {
@@ -1449,15 +1498,18 @@ validate_isbn() {
 			if [[ ! "${ISBN_CLEAN}" =~ ^[0-9]{9}[0-9Xx]$ ]]; then
 				return "1"
 			fi
+
 			ISBN_CLEAN="$(echo "${ISBN_CLEAN}" | tr "x" "X")"
 
 			local SUM="0"
+
 			for i in {0..8}; do
 				local DIGIT="${ISBN_CLEAN:${i}:1}"
 				SUM="$((${SUM} + ${DIGIT} * (10 - ${i})))"
 			done
 
 			local CHECK_DIGIT="${ISBN_CLEAN:9:1}"
+
 			if [[ "${CHECK_DIGIT}" == "X" ]]; then
 				SUM="$((${SUM} + 10))"
 			else
@@ -1478,11 +1530,13 @@ validate_isbn() {
 		if [[ "${#ISBN_CLEAN}" -ne "13" ]]; then
 			return "1"
 		fi
+
 		if [[ ! "${ISBN_CLEAN}" =~ ^[0-9]{13}$ ]]; then
 			return "1"
 		fi
 
 		local SUM="0"
+
 		for i in {0..12}; do
 			local DIGIT="${ISBN_CLEAN:${i}:1}"
 			if [[ "$((${i} % 2))" -eq "0" ]]; then
@@ -1882,13 +1936,19 @@ books_update() {
 		case "${1}" in
 			--title)
 				local ESCAPED_TITLE=$(sanitize_sql "${2}")
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
 				SET_CLAUSES="${SET_CLAUSES}title = '${ESCAPED_TITLE}'"
 
 				shift "2"
 			;;
 			--edition)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${2}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}edition = NULL"
@@ -1905,19 +1965,31 @@ books_update() {
 					return "1"
 				fi
 
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${2}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}year = NULL"
 				else
-					SET_CLAUSES="${SET_CLAUSES}year = ${2}"
+					local ESCAPED_YEAR
+
+					if ESCAPED_YEAR=$(sanitize_numeric "${2}" "${BOOKED_MAX_YEAR}"); then
+						SET_CLAUSES="${SET_CLAUSES}year = ${ESCAPED_YEAR}"
+					else
+						echo -e "${BOOKED_PARAMETER_INVALID} ${2}" >&2
+						return "1"
+					fi
 				fi
 
 				shift "2"
 			;;
 			--isbn10)
 				if [[ -z "${2}" || "${2}" == "" ]]; then
-					if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+					if [[ -n "${SET_CLAUSES}" ]]; then
+						SET_CLAUSES="${SET_CLAUSES}, "
+					fi
+
 					SET_CLAUSES="${SET_CLAUSES}isbn10 = NULL"
 				elif [[ -n "${2}" ]]; then
 					local VALIDATED_ISBN10=""
@@ -1928,7 +2000,10 @@ books_update() {
 						return "1"
 					fi
 
-					if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+					if [[ -n "${SET_CLAUSES}" ]]; then
+						SET_CLAUSES="${SET_CLAUSES}, "
+					fi
+
 					SET_CLAUSES="${SET_CLAUSES}isbn10 = '${VALIDATED_ISBN10}'"
 				fi
 
@@ -1936,7 +2011,10 @@ books_update() {
 			;;
 			--isbn13)
 				if [[ -z "${2}" || "${2}" == "" ]]; then
-					if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+					if [[ -n "${SET_CLAUSES}" ]]; then
+						SET_CLAUSES="${SET_CLAUSES}, "
+					fi
+
 					SET_CLAUSES="${SET_CLAUSES}isbn13 = NULL"
 				elif [[ -n "${2}" ]]; then
 					local VALIDATED_ISBN13=""
@@ -1947,32 +2025,47 @@ books_update() {
 						return "1"
 					fi
 
-					if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+					if [[ -n "${SET_CLAUSES}" ]]; then
+						SET_CLAUSES="${SET_CLAUSES}, "
+					fi
+
 					SET_CLAUSES="${SET_CLAUSES}isbn13 = '${VALIDATED_ISBN13}'"
 				fi
 
 				shift "2"
 			;;
 			--owned)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
 				SET_CLAUSES="${SET_CLAUSES}owned = 1"
 
 				shift
 			;;
 			--unowned)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
 				SET_CLAUSES="${SET_CLAUSES}owned = 0"
 
 				shift
 			;;
 			--read)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
 				SET_CLAUSES="${SET_CLAUSES}read = 1"
 
 				shift
 			;;
 			--unread)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
 				SET_CLAUSES="${SET_CLAUSES}read = 0"
 
 				shift
@@ -2002,6 +2095,7 @@ books_update() {
 
 	if [[ "${UPDATE_TAGS}" -eq "1" ]]; then
 		clear_tags "${BOOK_ID}" "book"
+
 		if [[ -n "${TAGS}" ]]; then
 			process_tags "${BOOK_ID}" "${TAGS}" "book"
 		fi
@@ -2130,41 +2224,80 @@ books_search() {
 	local WHERE_CLAUSES=""
 
 	if [[ -n "${TITLE}" ]]; then
-		local ESCAPED_TITLE=$(sanitize_sql "${TITLE}")
-		WHERE_CLAUSES="${WHERE_CLAUSES}books.title LIKE '%${ESCAPED_TITLE}%'"
+		local ESCAPED_TITLE=$(sanitize_query "${TITLE}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}books.title LIKE '%${ESCAPED_TITLE}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${EDITION}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		local ESCAPED_EDITION=$(sanitize_sql "${EDITION}")
-		WHERE_CLAUSES="${WHERE_CLAUSES}books.edition LIKE '%${ESCAPED_EDITION}%'"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_EDITION=$(sanitize_query "${EDITION}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}books.edition LIKE '%${ESCAPED_EDITION}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${YEAR}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		WHERE_CLAUSES="${WHERE_CLAUSES}books.year = ${YEAR}"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_YEAR
+
+		if ESCAPED_YEAR=$(sanitize_numeric "${YEAR}" "${BOOKED_MAX_YEAR}"); then
+			WHERE_CLAUSES="${WHERE_CLAUSES}books.year = ${ESCAPED_YEAR}"
+		else
+			echo -e "${BOOKED_PARAMETER_INVALID} ${YEAR}" >&2
+			return "1"
+		fi
 	fi
 
 	if [[ -n "${ISBN10}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
 		local SANITIZED_ISBN10=$(sanitize_isbn "${ISBN10}")
 		WHERE_CLAUSES="${WHERE_CLAUSES}books.isbn10 = '${SANITIZED_ISBN10}'"
 	fi
 
 	if [[ -n "${ISBN13}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
 		local SANITIZED_ISBN13=$(sanitize_isbn "${ISBN13}")
 		WHERE_CLAUSES="${WHERE_CLAUSES}books.isbn13 = '${SANITIZED_ISBN13}'"
 	fi
 
 	if [[ -n "${OWNED}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		WHERE_CLAUSES="${WHERE_CLAUSES}books.owned = ${OWNED}"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_OWNED
+
+		if ESCAPED_OWNED=$(sanitize_boolean "${OWNED}"); then
+			WHERE_CLAUSES="${WHERE_CLAUSES}books.owned = ${ESCAPED_OWNED}"
+		else
+			echo -e "${BOOKED_PARAMETER_INVALID} ${OWNED}" >&2
+			return "1"
+		fi
 	fi
 
 	if [[ -n "${READ}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		WHERE_CLAUSES="${WHERE_CLAUSES}books.read = ${READ}"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_READ
+
+		if ESCAPED_READ=$(sanitize_boolean "${READ}"); then
+			WHERE_CLAUSES="${WHERE_CLAUSES}books.read = ${ESCAPED_READ}"
+		else
+			echo -e "${BOOKED_PARAMETER_INVALID} ${READ}" >&2
+			return "1"
+		fi
 	fi
 
 	if [[ -n "${TAGS}" ]]; then
@@ -2178,7 +2311,10 @@ books_search() {
 
 			local ESCAPED_TAG=$(sanitize_sql "${TAG}")
 
-			if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+			if [[ -n "${WHERE_CLAUSES}" ]]; then
+				WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+			fi
+
 			WHERE_CLAUSES="${WHERE_CLAUSES}books.id IN (
 				SELECT book_tags.book_id FROM book_tags
 				JOIN tags ON book_tags.tag_id = tags.id
@@ -2369,13 +2505,25 @@ bookmarks_update() {
 					return "1"
 				fi
 
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
-				SET_CLAUSES="${SET_CLAUSES}book_id = ${BOOK_ID}"
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
+				local ESCAPED_BOOK_ID
+
+				if ESCAPED_BOOK_ID=$(sanitize_numeric "${BOOK_ID}"); then
+					SET_CLAUSES="${SET_CLAUSES}book_id = ${ESCAPED_BOOK_ID}"
+				else
+					echo -e "${BOOKED_PARAMETER_INVALID} ${BOOK_ID}" >&2
+					return "1"
+				fi
 
 				shift "2"
 			;;
 			--chapter)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${2}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}chapter = NULL"
@@ -2389,7 +2537,9 @@ bookmarks_update() {
 			--page)
 				local PAGE="${2}"
 
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${PAGE}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}page = NULL"
@@ -2401,7 +2551,10 @@ bookmarks_update() {
 				shift "2"
 			;;
 			--description)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
 				local ESCAPED_DESCRIPTION=$(sanitize_sql "${2}")
 				SET_CLAUSES="${SET_CLAUSES}description = '${ESCAPED_DESCRIPTION}'"
 
@@ -2432,6 +2585,7 @@ bookmarks_update() {
 
 	if [[ "${UPDATE_TAGS}" -eq "1" ]]; then
 		clear_tags "${BOOKMARK_ID}" "bookmark"
+
 		if [[ -n "${TAGS}" ]]; then
 			process_tags "${BOOKMARK_ID}" "${TAGS}" "bookmark"
 		fi
@@ -2480,24 +2634,41 @@ bookmarks_search() {
 	local WHERE_CLAUSES=""
 
 	if [[ -n "${BOOK_ID}" ]]; then
-		WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.book_id = ${BOOK_ID}"
+		local ESCAPED_BOOK_ID
+
+		if ESCAPED_BOOK_ID=$(sanitize_numeric "${BOOK_ID}"); then
+			WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.book_id = ${ESCAPED_BOOK_ID}"
+		else
+			echo -e "${BOOKED_PARAMETER_INVALID} ${BOOK_ID}" >&2
+			return "1"
+		fi
 	fi
 
 	if [[ -n "${CHAPTER}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		local ESCAPED_CHAPTER=$(sanitize_sql "${CHAPTER}")
-		WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.chapter LIKE '%${ESCAPED_CHAPTER}%'"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_CHAPTER=$(sanitize_query "${CHAPTER}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.chapter LIKE '%${ESCAPED_CHAPTER}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${PAGE}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.page = ${PAGE}"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_PAGE=$(sanitize_sql "${PAGE}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.page = '${ESCAPED_PAGE}'"
 	fi
 
 	if [[ -n "${DESCRIPTION}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		local ESCAPED_DESCRIPTION=$(sanitize_sql "${DESCRIPTION}")
-		WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.description LIKE '%${ESCAPED_DESCRIPTION}%'"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_DESCRIPTION=$(sanitize_query "${DESCRIPTION}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.description LIKE '%${ESCAPED_DESCRIPTION}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${TAGS}" ]]; then
@@ -2511,7 +2682,10 @@ bookmarks_search() {
 
 			local ESCAPED_TAG=$(sanitize_sql "${TAG}")
 
-			if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+			if [[ -n "${WHERE_CLAUSES}" ]]; then
+				WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+			fi
+
 			WHERE_CLAUSES="${WHERE_CLAUSES}bookmarks.id IN (
 				SELECT bookmark_tags.bookmark_id FROM bookmark_tags
 				JOIN tags ON bookmark_tags.tag_id = tags.id
@@ -2703,14 +2877,20 @@ texts_update() {
 	while [[ "${#}" -gt "0" ]]; do
 		case "${1}" in
 			--title)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
 				local ESCAPED_TITLE=$(sanitize_sql "${2}")
 				SET_CLAUSES="${SET_CLAUSES}title = '${ESCAPED_TITLE}'"
 
 				shift "2"
 			;;
 			--author)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
 				local ESCAPED_AUTHOR=$(sanitize_sql "${2}")
 				SET_CLAUSES="${SET_CLAUSES}author = '${ESCAPED_AUTHOR}'"
 
@@ -2724,18 +2904,29 @@ texts_update() {
 					return "1"
 				fi
 
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${YEAR}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}year = NULL"
 				else
-					SET_CLAUSES="${SET_CLAUSES}year = ${YEAR}"
+					local ESCAPED_YEAR
+
+					if ESCAPED_YEAR=$(sanitize_numeric "${YEAR}" "${BOOKED_MAX_YEAR}"); then
+						SET_CLAUSES="${SET_CLAUSES}year = ${ESCAPED_YEAR}"
+					else
+						echo -e "${BOOKED_PARAMETER_INVALID} ${YEAR}" >&2
+						return "1"
+					fi
 				fi
 
 				shift "2"
 			;;
 			--url)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${2}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}url = NULL"
@@ -2774,6 +2965,7 @@ texts_update() {
 
 	if [[ "${UPDATE_TAGS}" -eq "1" ]]; then
 		clear_tags "${TEXT_ID}" "text"
+
 		if [[ -n "${TAGS}" ]]; then
 			process_tags "${TEXT_ID}" "${TAGS}" "text"
 		fi
@@ -2826,27 +3018,43 @@ texts_search() {
 	local WHERE_CLAUSES=""
 
 	if [[ -n "${TITLE}" ]]; then
-		local ESCAPED_TITLE=$(sanitize_sql "${TITLE}")
-		WHERE_CLAUSES="texts.title LIKE '%${ESCAPED_TITLE}%'"
+		local ESCAPED_TITLE=$(sanitize_query "${TITLE}")
+		WHERE_CLAUSES="texts.title LIKE '%${ESCAPED_TITLE}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${AUTHOR}" ]]; then
-		local ESCAPED_AUTHOR=$(sanitize_sql "${AUTHOR}")
+		local ESCAPED_AUTHOR=$(sanitize_query "${AUTHOR}")
 
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		WHERE_CLAUSES="${WHERE_CLAUSES}texts.author LIKE '%${ESCAPED_AUTHOR}%'"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		WHERE_CLAUSES="${WHERE_CLAUSES}texts.author LIKE '%${ESCAPED_AUTHOR}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${YEAR}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		WHERE_CLAUSES="${WHERE_CLAUSES}texts.year = ${YEAR}"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_YEAR
+
+		if ESCAPED_YEAR=$(sanitize_numeric "${YEAR}" "${BOOKED_MAX_YEAR}"); then
+			WHERE_CLAUSES="${WHERE_CLAUSES}texts.year = ${ESCAPED_YEAR}"
+		else
+			echo -e "${BOOKED_PARAMETER_INVALID} ${YEAR}" >&2
+			return "1"
+		fi
 	fi
 
 	if [[ -n "${URL}" ]]; then
-		local ESCAPED_URL=$(sanitize_sql "${URL}")
+		local ESCAPED_URL=$(sanitize_query "${URL}")
 
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		WHERE_CLAUSES="${WHERE_CLAUSES}texts.url LIKE '%${ESCAPED_URL}%'"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		WHERE_CLAUSES="${WHERE_CLAUSES}texts.url LIKE '%${ESCAPED_URL}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${TAGS}" ]]; then
@@ -2855,7 +3063,10 @@ texts_search() {
 		for TAG in "${TAG_ARRAY[@]}"; do
 			local ESCAPED_TAG=$(sanitize_sql "${TAG}")
 
-			if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+			if [[ -n "${WHERE_CLAUSES}" ]]; then
+				WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+			fi
+
 			WHERE_CLAUSES="${WHERE_CLAUSES}texts.id IN (
 				SELECT text_tags.text_id FROM text_tags
 				JOIN tags ON text_tags.tag_id = tags.id
@@ -3045,15 +3256,27 @@ text_notes_update() {
 					return "1"
 				fi
 
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
-				SET_CLAUSES="${SET_CLAUSES}text_id = ${TEXT_ID}"
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
+				local ESCAPED_TEXT_ID
+
+				if ESCAPED_TEXT_ID=$(sanitize_numeric "${TEXT_ID}"); then
+					SET_CLAUSES="${SET_CLAUSES}text_id = ${ESCAPED_TEXT_ID}"
+				else
+					echo -e "${BOOKED_PARAMETER_INVALID} ${TEXT_ID}" >&2
+					return "1"
+				fi
 
 				shift "2"
 			;;
 			--page)
 				local PAGE="${2}"
 
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${PAGE}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}page = NULL"
@@ -3065,7 +3288,9 @@ text_notes_update() {
 				shift "2"
 			;;
 			--section)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${2}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}section = NULL"
@@ -3077,7 +3302,9 @@ text_notes_update() {
 				shift "2"
 			;;
 			--description)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${2}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}description = NULL"
@@ -3116,6 +3343,7 @@ text_notes_update() {
 
 	if [[ "${UPDATE_TAGS}" -eq "1" ]]; then
 		clear_tags "${TEXT_NOTE_ID}" "text-note"
+
 		if [[ -n "${TAGS}" ]]; then
 			process_tags "${TEXT_NOTE_ID}" "${TAGS}" "text-note"
 		fi
@@ -3168,26 +3396,43 @@ text_notes_search() {
 	local WHERE_CLAUSES=""
 
 	if [[ -n "${TEXT_ID}" ]]; then
-		WHERE_CLAUSES="text_notes.text_id = ${TEXT_ID}"
+		local ESCAPED_TEXT_ID
+
+		if ESCAPED_TEXT_ID=$(sanitize_numeric "${TEXT_ID}"); then
+			WHERE_CLAUSES="text_notes.text_id = ${ESCAPED_TEXT_ID}"
+		else
+			echo -e "${BOOKED_PARAMETER_INVALID} ${TEXT_ID}" >&2
+			return "1"
+		fi
 	fi
 
 	if [[ -n "${PAGE}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		WHERE_CLAUSES="${WHERE_CLAUSES}text_notes.page = ${PAGE}"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_PAGE=$(sanitize_sql "${PAGE}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}text_notes.page = '${ESCAPED_PAGE}'"
 	fi
 
 	if [[ -n "${SECTION}" ]]; then
-		local ESCAPED_SECTION=$(sanitize_sql "${SECTION}")
+		local ESCAPED_SECTION=$(sanitize_query "${SECTION}")
 
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		WHERE_CLAUSES="${WHERE_CLAUSES}text_notes.section LIKE '%${ESCAPED_SECTION}%'"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		WHERE_CLAUSES="${WHERE_CLAUSES}text_notes.section LIKE '%${ESCAPED_SECTION}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${DESCRIPTION}" ]]; then
-		local ESCAPED_DESCRIPTION=$(sanitize_sql "${DESCRIPTION}")
+		local ESCAPED_DESCRIPTION=$(sanitize_query "${DESCRIPTION}")
 
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		WHERE_CLAUSES="${WHERE_CLAUSES}text_notes.description LIKE '%${ESCAPED_DESCRIPTION}%'"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		WHERE_CLAUSES="${WHERE_CLAUSES}text_notes.description LIKE '%${ESCAPED_DESCRIPTION}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${TAGS}" ]]; then
@@ -3196,7 +3441,10 @@ text_notes_search() {
 		for TAG in "${TAG_ARRAY[@]}"; do
 			local ESCAPED_TAG=$(sanitize_sql "${TAG}")
 
-			if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+			if [[ -n "${WHERE_CLAUSES}" ]]; then
+				WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+			fi
+
 			WHERE_CLAUSES="${WHERE_CLAUSES}text_notes.id IN (
 				SELECT text_note_tags.text_note_id FROM text_note_tags
 				JOIN tags ON text_note_tags.tag_id = tags.id
@@ -3406,14 +3654,22 @@ quotations_update() {
 		case "${1}" in
 			--quotation)
 				local ESCAPED_QUOTATION=$(sanitize_sql "${2}")
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
 				SET_CLAUSES="${SET_CLAUSES}quotation = '${ESCAPED_QUOTATION}'"
 
 				shift "2"
 			;;
 			--author)
 				local ESCAPED_AUTHOR=$(sanitize_sql "${2}")
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
 				SET_CLAUSES="${SET_CLAUSES}author = '${ESCAPED_AUTHOR}'"
 
 				shift "2"
@@ -3424,18 +3680,29 @@ quotations_update() {
 					return "1"
 				fi
 
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${2}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}year = NULL"
 				else
-					SET_CLAUSES="${SET_CLAUSES}year = ${2}"
+					local ESCAPED_YEAR
+
+					if ESCAPED_YEAR=$(sanitize_numeric "${2}" "${BOOKED_MAX_YEAR}"); then
+						SET_CLAUSES="${SET_CLAUSES}year = ${ESCAPED_YEAR}"
+					else
+						echo -e "${BOOKED_PARAMETER_INVALID} ${2}" >&2
+						return "1"
+					fi
 				fi
 
 				shift "2"
 			;;
 			--description)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${2}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}description = NULL"
@@ -3471,6 +3738,7 @@ quotations_update() {
 
 	if [[ "${UPDATE_TAGS}" -eq "1" ]]; then
 		clear_tags "${QUOTATION_ID}" "quotation"
+
 		if [[ -n "${TAGS}" ]]; then
 			process_tags "${QUOTATION_ID}" "${TAGS}" "quotation"
 		fi
@@ -3525,25 +3793,41 @@ quotations_search() {
 	local WHERE_CLAUSES=""
 
 	if [[ -n "${QUOTATION}" ]]; then
-		local ESCAPED_QUOTATION=$(sanitize_sql "${QUOTATION}")
-		WHERE_CLAUSES="${WHERE_CLAUSES}quotations.quotation LIKE '%${ESCAPED_QUOTATION}%'"
+		local ESCAPED_QUOTATION=$(sanitize_query "${QUOTATION}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}quotations.quotation LIKE '%${ESCAPED_QUOTATION}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${AUTHOR}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		local ESCAPED_AUTHOR=$(sanitize_sql "${AUTHOR}")
-		WHERE_CLAUSES="${WHERE_CLAUSES}quotations.author LIKE '%${ESCAPED_AUTHOR}%'"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_AUTHOR=$(sanitize_query "${AUTHOR}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}quotations.author LIKE '%${ESCAPED_AUTHOR}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${YEAR}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		WHERE_CLAUSES="${WHERE_CLAUSES}quotations.year = ${YEAR}"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_YEAR
+
+		if ESCAPED_YEAR=$(sanitize_numeric "${YEAR}" "${BOOKED_MAX_YEAR}"); then
+			WHERE_CLAUSES="${WHERE_CLAUSES}quotations.year = ${ESCAPED_YEAR}"
+		else
+			echo -e "${BOOKED_PARAMETER_INVALID} ${YEAR}" >&2
+			return "1"
+		fi
 	fi
 
 	if [[ -n "${DESCRIPTION}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		local ESCAPED_DESCRIPTION=$(sanitize_sql "${DESCRIPTION}")
-		WHERE_CLAUSES="${WHERE_CLAUSES}quotations.description LIKE '%${ESCAPED_DESCRIPTION}%'"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_DESCRIPTION=$(sanitize_query "${DESCRIPTION}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}quotations.description LIKE '%${ESCAPED_DESCRIPTION}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${TAGS}" ]]; then
@@ -3557,7 +3841,10 @@ quotations_search() {
 
 			local ESCAPED_TAG=$(sanitize_sql "${TAG}")
 
-			if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+			if [[ -n "${WHERE_CLAUSES}" ]]; then
+				WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+			fi
+
 			WHERE_CLAUSES="${WHERE_CLAUSES}quotations.id IN (
 				SELECT quotation_tags.quotation_id FROM quotation_tags
 				JOIN tags ON quotation_tags.tag_id = tags.id
@@ -3760,13 +4047,18 @@ words_update() {
 		case "${1}" in
 			--word)
 				local ESCAPED_WORD=$(sanitize_sql "${2}")
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
 				SET_CLAUSES="${SET_CLAUSES}word = '${ESCAPED_WORD}'"
 
 				shift "2"
 			;;
 			--language)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${2}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}language = NULL"
@@ -3778,7 +4070,9 @@ words_update() {
 				shift "2"
 			;;
 			--description)
-				if [[ -n "${SET_CLAUSES}" ]]; then SET_CLAUSES="${SET_CLAUSES}, "; fi
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
 
 				if [[ -z "${2}" ]]; then
 					SET_CLAUSES="${SET_CLAUSES}description = NULL"
@@ -3814,6 +4108,7 @@ words_update() {
 
 	if [[ "${UPDATE_TAGS}" -eq "1" ]]; then
 		clear_tags "${WORD_ID}" "word"
+
 		if [[ -n "${TAGS}" ]]; then
 			process_tags "${WORD_ID}" "${TAGS}" "word"
 		fi
@@ -3857,20 +4152,26 @@ words_search() {
 	local WHERE_CLAUSES=""
 
 	if [[ -n "${WORD}" ]]; then
-		local ESCAPED_WORD=$(sanitize_sql "${WORD}")
-		WHERE_CLAUSES="${WHERE_CLAUSES}words.word LIKE '%${ESCAPED_WORD}%'"
+		local ESCAPED_WORD=$(sanitize_query "${WORD}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}words.word LIKE '%${ESCAPED_WORD}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${LANGUAGE}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		local ESCAPED_LANGUAGE=$(sanitize_sql "${LANGUAGE}")
-		WHERE_CLAUSES="${WHERE_CLAUSES}words.language LIKE '%${ESCAPED_LANGUAGE}%'"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_LANGUAGE=$(sanitize_query "${LANGUAGE}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}words.language LIKE '%${ESCAPED_LANGUAGE}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${DESCRIPTION}" ]]; then
-		if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
-		local ESCAPED_DESCRIPTION=$(sanitize_sql "${DESCRIPTION}")
-		WHERE_CLAUSES="${WHERE_CLAUSES}words.description LIKE '%${ESCAPED_DESCRIPTION}%'"
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_DESCRIPTION=$(sanitize_query "${DESCRIPTION}")
+		WHERE_CLAUSES="${WHERE_CLAUSES}words.description LIKE '%${ESCAPED_DESCRIPTION}%' ESCAPE '\\'"
 	fi
 
 	if [[ -n "${TAGS}" ]]; then
@@ -3884,7 +4185,10 @@ words_search() {
 
 			local ESCAPED_TAG=$(sanitize_sql "${TAG}")
 
-			if [[ -n "${WHERE_CLAUSES}" ]]; then WHERE_CLAUSES="${WHERE_CLAUSES} AND "; fi
+			if [[ -n "${WHERE_CLAUSES}" ]]; then
+				WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+			fi
+
 			WHERE_CLAUSES="${WHERE_CLAUSES}words.id IN (
 				SELECT word_tags.word_id FROM word_tags
 				JOIN tags ON word_tags.tag_id = tags.id
@@ -3990,7 +4294,7 @@ tags_list() {
 	fi
 }
 
-export_shell_script() {
+export_database_shell() {
 	local EXPORT_FILE="${1}"
 
 	{
@@ -4096,10 +4400,7 @@ export_database() {
 
 	case "${BOOKED_DB_EXPORT_FORMAT}" in
 		sh)
-			export_shell_script "${BOOKED_DB_EXPORT_FILE}"
-		;;
-		sql)
-			sqlite3 "${BOOKED_DB}" ".dump" > "${BOOKED_DB_EXPORT_FILE}"
+			export_database_shell "${BOOKED_DB_EXPORT_FILE}"
 		;;
 		sqlite|db)
 			sqlite3 "${BOOKED_DB}" ".backup ${BOOKED_DB_EXPORT_FILE}"
@@ -4144,25 +4445,6 @@ import_database() {
 					return "1"
 				fi
 			else
-				echo -e "${BOOKED_DB_IMPORT_FAILED}"
-				return "1"
-			fi
-		;;
-		sql)
-			cp "${BOOKED_DB}" "${BOOKED_DB}.export"
-
-			sqlite3 "${TEMP_DB}" ""
-
-			if cat "${IMPORT_FILE}" | sqlite3 "${TEMP_DB}"; then
-				if mv "${TEMP_DB}" "${BOOKED_DB}"; then
-					echo -e "${BOOKED_DB_IMPORT} ${BOOKED_DB_IMPORT_SQL}"
-					return "0"
-				else
-					echo -e "${BOOKED_DB_IMPORT_FAILED}"
-					return "1"
-				fi
-			else
-				rm -f "${TEMP_DB}"
 				echo -e "${BOOKED_DB_IMPORT_FAILED}"
 				return "1"
 			fi
@@ -4236,7 +4518,6 @@ main() {
 			fi
 
 			local SUBCOMMAND="${1}"
-
 			shift
 
 			case "${SUBCOMMAND}" in

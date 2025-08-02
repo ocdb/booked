@@ -177,14 +177,13 @@ _booked() {
 					local -a formats
 					formats=(
 						"sh"
-						"sql"
 						"sqlite"
 						"db"
 					)
 					_describe -t formats "format" formats
 				;;
 				import)
-					_files -g "*.{sql,sqlite,db}"
+					_files -g "*.{sqlite,db}"
 				;;
 			esac
 		;;
