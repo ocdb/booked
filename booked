@@ -29,7 +29,7 @@ BOOKED_EMPTY_INDICATOR="${BOOKED_EMPTY_INDICATOR:-"-"}"
 
 BOOKED_HELP_GENERAL_MESSAGE="Use \"${BOOKED_NAME} help\" for more information."
 BOOKED_HELP_COMMAND_MESSAGE="Use \"${BOOKED_NAME} %s help\" for more information."
-BOOKED_HELP_COMMAND_DESCRIPTION="Show this help message"
+BOOKED_HELP_DESCRIPTION="Show this help message"
 
 BOOKED_CURRENT_YEAR="$(command date "+%Y")"
 BOOKED_CURRENT_TIMESTAMP="$(command date "+%s")"
@@ -1057,7 +1057,7 @@ books_help() {
 	printf "				[--unread]\n"
 	printf "				[--tags \"tag,tag\"]\n"
 	printf "	delete <book>		Delete a book\n"
-	printf "	help			${BOOKED_HELP_COMMAND_DESCRIPTION}\n"
+	printf "	help			${BOOKED_HELP_DESCRIPTION}\n"
 }
 
 bookmarks_help() {
@@ -1083,7 +1083,7 @@ bookmarks_help() {
 	printf "				[--description \"...\"]\n"
 	printf "				[--tags \"tag,tag\"]\n"
 	printf "	delete <bookmark>	Delete a bookmark\n"
-	printf "	help			${BOOKED_HELP_COMMAND_DESCRIPTION}\n"
+	printf "	help			${BOOKED_HELP_DESCRIPTION}\n"
 }
 
 texts_help() {
@@ -1109,7 +1109,7 @@ texts_help() {
 	printf "				[--url \"...\"]\n"
 	printf "				[--tags \"tag,tag\"]\n"
 	printf "	delete <text>		Delete a text\n"
-	printf "	help			${BOOKED_HELP_COMMAND_DESCRIPTION}\n"
+	printf "	help			${BOOKED_HELP_DESCRIPTION}\n"
 }
 
 text_notes_help() {
@@ -1135,7 +1135,7 @@ text_notes_help() {
 	printf "				[--description \"...\"]\n"
 	printf "				[--tags \"tag,tag\"]\n"
 	printf "	delete <text-note>	Delete a text note\n"
-	printf "	help			${BOOKED_HELP_COMMAND_DESCRIPTION}\n"
+	printf "	help			${BOOKED_HELP_DESCRIPTION}\n"
 }
 
 quotations_help() {
@@ -1162,7 +1162,7 @@ quotations_help() {
 	printf "				[--description \"...\"]\n"
 	printf "				[--tags \"tag,tag\"]\n"
 	printf "	delete <quotation>	Delete a quotation\n"
-	printf "	help			${BOOKED_HELP_COMMAND_DESCRIPTION}\n"
+	printf "	help			${BOOKED_HELP_DESCRIPTION}\n"
 }
 
 words_help() {
@@ -1186,7 +1186,7 @@ words_help() {
 	printf "				[--description \"...\"]\n"
 	printf "				[--tags \"tag,tag\"]\n"
 	printf "	delete <word>		Delete a word\n"
-	printf "	help			${BOOKED_HELP_COMMAND_DESCRIPTION}\n"
+	printf "	help			${BOOKED_HELP_DESCRIPTION}\n"
 }
 
 tags_help() {
@@ -1221,7 +1221,7 @@ usage() {
 	printf "	quotations		Manage quotations\n"
 	printf "	words			Manage words\n"
 	printf "	tags			Indices of tags\n"
-	printf "	help			${BOOKED_HELP_GENERAL_MESSAGE}\n"
+	printf "	help			${BOOKED_HELP_DESCRIPTION}\n"
 	printf "\n"
 	database_help
 	printf "\n"
