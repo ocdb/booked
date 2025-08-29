@@ -398,11 +398,11 @@ readonly SQL_BOOK_INFO="
 		isbn13,
 		CASE books.owned
 			WHEN 0 THEN ''
-			WHEN 1 THEN '✓'
+			WHEN 1 THEN '${BOOKED_OWNED_INDICATOR}'
 		END AS owned,
 		CASE books.read
 			WHEN 0 THEN ''
-			WHEN 1 THEN '✓'
+			WHEN 1 THEN '${BOOKED_READ_INDICATOR}'
 		END AS read,
 		(SELECT GROUP_CONCAT(name, ',') FROM
 			(SELECT tags.name as name

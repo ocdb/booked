@@ -8,27 +8,27 @@ Personal reading and library management system.
 Usage: booked [command] [subcommand] [options]
 
 Commands:
-	books			Manage books
-	bookmarks		Manage bookmarks
-	texts			Manage texts
-	text-notes		Manage text notes
-	quotations		Manage quotations
-	words			Manage words
-	tags			Indices of tags
-	help			Use "booked help" for more information.
+        books                   Manage books
+        bookmarks               Manage bookmarks
+        texts                   Manage texts
+        text-notes              Manage text notes
+        quotations              Manage quotations
+        words                   Manage words
+        tags                    Indices of tags
+        help                    Show this help message
 
 Database:
-	export [format]		Create an export of the database. Supported formats: sh, sqlite, db (default)
-	import <file>		Import data from a file. Supported formats: sqlite, db
+        export [format]         Create an export of the database. Supported formats: sh, sqlite, db (default)
+        import <file>           Import data from a file. Supported formats: sqlite, db
 
 Environment variables:
-	BOOKED_DATA		Specify path of booked data (default "${XDG_DATA_HOME}/booked"; "${HOME}/.local/share/booked")
-	BOOKED_RAINBOW		Enable or disable "rainbow_csv" style output (default "1")
-	BOOKED_DELIMITER	Specify the string to use as a field delimiter on output (default " / ")
-	BOOKED_SEPARATOR	Specify the string to use as a row separator on output (default "---")
-	BOOKED_OWNED_INDICATOR	Indicator to display for owned books (default "+")
-	BOOKED_READ_INDICATOR	Indicator to display for read books (default "+")
-	BOOKED_EMPTY_INDICATOR	Indicator to display for empty fields (default "-")
+        BOOKED_DATA             Specify path of booked data (default "${XDG_DATA_HOME}/booked"; "${HOME}/.local/share/booked")
+        BOOKED_RAINBOW          Enable or disable "rainbow_csv" style output (default "1")
+        BOOKED_DELIMITER        Specify the string to use as a field delimiter on output (default " / ")
+        BOOKED_SEPARATOR        Specify the string to use as a row separator on output (default "---")
+        BOOKED_OWNED_INDICATOR  Indicator to display for owned books (default "+")
+        BOOKED_READ_INDICATOR   Indicator to display for read books (default "+")
+        BOOKED_EMPTY_INDICATOR  Indicator to display for empty fields (default "-")
 ```
 
 ## Dependencies
