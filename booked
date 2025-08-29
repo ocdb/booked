@@ -1196,7 +1196,7 @@ tags_help() {
 
 database_help() {
 	printf "Database:\n"
-	printf "	export [format]		Create an export of the database. ${BOOKED_DB_FORMATS}\n"
+	printf "	export [format]		Export the database. ${BOOKED_DB_FORMATS}\n"
 	printf "	import <file>		Import data from a file. ${BOOKED_DB_IMPORT_FORMATS}\n"
 }
 

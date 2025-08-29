@@ -18,7 +18,7 @@ Commands:
         help                    Show this help message
 
 Database:
-        export [format]         Create an export of the database. Supported formats: sh, sqlite, db (default)
+        export [format]         Export the database. Supported formats: sh, sqlite, db (default)
         import <file>           Import data from a file. Supported formats: sqlite, db
 
 Environment variables:
