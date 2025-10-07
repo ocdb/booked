@@ -206,6 +206,8 @@ _booked() {
 						"--unowned"
 						"--read"
 						"--unread"
+						"--queue"
+						"--unqueue"
 						"--tags"
 					)
 					_describe -t options "option" options
@@ -225,6 +227,8 @@ _booked() {
 							"--unowned"
 							"--read"
 							"--unread"
+							"--queue"
+							"--unqueue"
 							"--tags"
 						)
 						_describe -t options "option" options
@@ -242,6 +246,8 @@ _booked() {
 						"--unowned"
 						"--read"
 						"--unread"
+						"--queue"
+						"--unqueue"
 						"--tags"
 					)
 					_describe -t options "option" options
@@ -512,4 +518,5 @@ _booked() {
 		;;
 	esac
 }
+
 _booked

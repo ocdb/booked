@@ -88,13 +88,13 @@ _booked() {
 					fi
 				;;
 				books_add|books_search)
-					COMPREPLY=($(compgen -W "--title --edition --year --isbn10 --isbn13 --owned --unowned --read --unread --tags" -- "${cur}"))
+					COMPREPLY=($(compgen -W "--title --edition --year --isbn10 --isbn13 --owned --unowned --read --unread --queue --unqueue --tags" -- "${cur}"))
 				;;
 				books_update)
 					if [[ "${cword}" -eq "3" ]]; then
 						COMPREPLY=()
 					else
-						COMPREPLY=($(compgen -W "--title --edition --year --isbn10 --isbn13 --owned --unowned --read --unread --tags" -- "${cur}"))
+						COMPREPLY=($(compgen -W "--title --edition --year --isbn10 --isbn13 --owned --unowned --read --unread --queue --unqueue --tags" -- "${cur}"))
 					fi
 				;;
 				bookmarks_add|bookmarks_search)

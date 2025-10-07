@@ -25,6 +25,7 @@ BOOKED_DELIMITER="${BOOKED_DELIMITER:-" / "}"
 BOOKED_SEPARATOR="${BOOKED_SEPARATOR:-"---"}"
 BOOKED_OWNED_INDICATOR="${BOOKED_OWNED_INDICATOR:-"+"}"
 BOOKED_READ_INDICATOR="${BOOKED_READ_INDICATOR:-"+"}"
+BOOKED_QUEUE_INDICATOR="${BOOKED_QUEUE_INDICATOR:-"+"}"
 BOOKED_EMPTY_INDICATOR="${BOOKED_EMPTY_INDICATOR:-"-"}"
 
 BOOKED_HELP_GENERAL_MESSAGE="Use \"${BOOKED_NAME} help\" for more information."
@@ -185,7 +186,8 @@ PRAGMA foreign_keys = ON;
 		isbn10 TEXT CHECK(length(isbn10) = 0 OR length(isbn10) = 10 OR length(isbn10) = 13),
 		isbn13 TEXT CHECK(length(isbn13) = 0 OR length(isbn13) = 13),
 		owned BOOLEAN NOT NULL DEFAULT 0 CHECK(owned IN (0, 1)),
-		read BOOLEAN NOT NULL DEFAULT 0 CHECK(read IN (0, 1))
+		read BOOLEAN NOT NULL DEFAULT 0 CHECK(read IN (0, 1)),
+		queue BOOLEAN NOT NULL DEFAULT 0 CHECK(queue IN (0, 1))
 	);
 
 	CREATE TABLE IF NOT EXISTS bookmarks (
@@ -289,6 +291,7 @@ PRAGMA foreign_keys = ON;
 	CREATE INDEX idx_books_isbn13 ON books(isbn13);
 	CREATE INDEX idx_books_owned ON books(owned);
 	CREATE INDEX idx_books_read ON books(read);
+	CREATE INDEX idx_books_queue ON books(queue);
 
 	CREATE INDEX idx_bookmarks_book_id ON bookmarks(book_id);
 	CREATE INDEX idx_bookmarks_chapter ON bookmarks(chapter);
@@ -351,6 +354,10 @@ readonly SQL_BOOKS_LIST="
 			WHEN 0 THEN ''
 			WHEN 1 THEN '${BOOKED_READ_INDICATOR}'
 		END AS read,
+		CASE books.queue
+			WHEN 0 THEN ''
+			WHEN 1 THEN '${BOOKED_QUEUE_INDICATOR}'
+		END AS queue,
 		(SELECT GROUP_CONCAT(name, ',') FROM
 			(SELECT tags.name as name
 			FROM tags
@@ -378,6 +385,10 @@ readonly SQL_BOOKS_SEARCH_BASE="
 			WHEN 0 THEN ''
 			WHEN 1 THEN '${BOOKED_READ_INDICATOR}'
 		END AS read,
+		CASE books.queue
+			WHEN 0 THEN ''
+			WHEN 1 THEN '${BOOKED_QUEUE_INDICATOR}'
+		END AS queue,
 		(SELECT GROUP_CONCAT(name, ',') FROM
 			(SELECT tags.name as name
 			FROM tags
@@ -404,6 +415,10 @@ readonly SQL_BOOK_INFO="
 			WHEN 0 THEN ''
 			WHEN 1 THEN '${BOOKED_READ_INDICATOR}'
 		END AS read,
+		CASE books.queue
+			WHEN 0 THEN ''
+			WHEN 1 THEN '${BOOKED_QUEUE_INDICATOR}'
+		END AS queue,
 		(SELECT GROUP_CONCAT(name, ',') FROM
 			(SELECT tags.name as name
 			FROM tags
@@ -420,8 +435,8 @@ readonly SQL_BOOK_EXISTS="
 "
 
 readonly SQL_BOOK_ADD="
-	INSERT INTO books (title, edition, year, isbn10, isbn13, owned, read)
-	VALUES ('%s', %s, %s, %s, %s, %s, %s);
+	INSERT INTO books (title, edition, year, isbn10, isbn13, owned, read, queue)
+	VALUES ('%s', %s, %s, %s, %s, %s, %s, %s);
 	SELECT last_insert_rowid();
 "
 
@@ -1033,6 +1048,8 @@ books_help() {
 	printf "				[--unowned]\n"
 	printf "				[--read]\n"
 	printf "				[--unread]\n"
+	printf "				[--queue]\n"
+	printf "				[--unqueue]\n"
 	printf "				[--tags \"tag,tag\"]\n"
 	printf "	update <book>\n"
 	printf "				[--title \"...\"]\n"
@@ -1044,6 +1061,8 @@ books_help() {
 	printf "				[--unowned]\n"
 	printf "				[--read]\n"
 	printf "				[--unread]\n"
+	printf "				[--queue]\n"
+	printf "				[--unqueue]\n"
 	printf "				[--tags \"tag,tag\"]\n"
 	printf "	search\n"
 	printf "				[--title \"...\"]\n"
@@ -1055,6 +1074,8 @@ books_help() {
 	printf "				[--unowned]\n"
 	printf "				[--read]\n"
 	printf "				[--unread]\n"
+	printf "				[--queue]\n"
+	printf "				[--unqueue]\n"
 	printf "				[--tags \"tag,tag\"]\n"
 	printf "	delete <book>		Delete a book\n"
 	printf "	help			${BOOKED_HELP_DESCRIPTION}\n"
@@ -1208,6 +1229,7 @@ environment_help() {
 	printf "	BOOKED_SEPARATOR	Specify the string to use as a row separator on output (default \"---\")\n"
 	printf "	BOOKED_OWNED_INDICATOR	Indicator to display for owned books (default \"+\")\n"
 	printf "	BOOKED_READ_INDICATOR	Indicator to display for read books (default \"+\")\n"
+	printf "	BOOKED_QUEUE_INDICATOR	Indicator to display for queued books (default \"+\")\n"
 	printf "	BOOKED_EMPTY_INDICATOR	Indicator to display for empty fields (default \"-\")\n"
 }
 
@@ -1470,18 +1492,26 @@ sanitize_tags() {
 
 	TAGS_STRING="$(echo "${TAGS_STRING}" | tr --delete '\\')"
 
-	local RESULT=""
+	local TAG_LIST=()
 	IFS="," read -ra TAG_ARRAY <<< "${TAGS_STRING}"
 
 	for TAG in "${TAG_ARRAY[@]}"; do
 		local CLEAN_TAG="$(echo "${TAG}" | tr --complement --delete "a-z0-9 +_.-")"
 
 		if [[ -n "${CLEAN_TAG}" ]]; then
-			if [[ -n "${RESULT}" ]]; then
-				RESULT="${RESULT},${CLEAN_TAG}"
-			else
-				RESULT="${CLEAN_TAG}"
-			fi
+			TAG_LIST+=("${CLEAN_TAG}")
+		fi
+	done
+
+	IFS=$'\n' SORTED_TAGS=($(sort --unique <<<"${TAG_LIST[*]}"))
+	unset IFS
+
+	local RESULT=""
+	for TAG in "${SORTED_TAGS[@]}"; do
+		if [[ -n "${RESULT}" ]]; then
+			RESULT="${RESULT},${TAG}"
+		else
+			RESULT="${TAG}"
 		fi
 	done
 
@@ -1788,6 +1818,7 @@ books_add() {
 	local ISBN13=""
 	local OWNED="0"
 	local READ="0"
+	local QUEUE="0"
 	local TAGS=""
 
 	while [[ "${#}" -gt "0" ]]; do
@@ -1854,6 +1885,14 @@ books_add() {
 				READ="0"
 				shift
 			;;
+			--queue)
+				QUEUE="1"
+				shift
+			;;
+			--unqueue)
+				QUEUE="0"
+				shift
+			;;
 			--tags)
 				TAGS="${2}"
 				shift "2"
@@ -1897,7 +1936,7 @@ books_add() {
 		ISBN13="'${ISBN13}'"
 	fi
 
-	local FORMATTED_QUERY=$(printf "${SQL_BOOK_ADD}" "${TITLE}" "${EDITION}" "${YEAR}" "${ISBN10}" "${ISBN13}" "${OWNED}" "${READ}")
+	local FORMATTED_QUERY=$(printf "${SQL_BOOK_ADD}" "${TITLE}" "${EDITION}" "${YEAR}" "${ISBN10}" "${ISBN13}" "${OWNED}" "${READ}" "${QUEUE}")
 	local BOOK_ID=$(sqlite3 "${BOOKED_DB}" "${FORMATTED_QUERY}" 2> "/dev/null")
 
 	if [[ "${?}" -ne "0" || -z "${BOOK_ID}" ]]; then
@@ -2070,6 +2109,24 @@ books_update() {
 
 				shift
 			;;
+			--queue)
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
+				SET_CLAUSES="${SET_CLAUSES}queue = 1"
+
+				shift
+			;;
+			--unqueue)
+				if [[ -n "${SET_CLAUSES}" ]]; then
+					SET_CLAUSES="${SET_CLAUSES}, "
+				fi
+
+				SET_CLAUSES="${SET_CLAUSES}queue = 0"
+
+				shift
+			;;
 			--tags)
 				TAGS="${2}"
 				UPDATE_TAGS="1"
@@ -2113,6 +2170,7 @@ books_search() {
 	local ISBN13=""
 	local OWNED=""
 	local READ=""
+	local QUEUE=""
 	local TAGS=""
 
 	while [[ "${#}" -gt "0" ]]; do
@@ -2210,6 +2268,14 @@ books_search() {
 				READ="0"
 				shift
 			;;
+			--queue)
+				QUEUE="1"
+				shift
+			;;
+			--unqueue)
+				QUEUE="0"
+				shift
+			;;
 			--tags)
 				TAGS="${2}"
 				shift "2"
@@ -2296,6 +2362,21 @@ books_search() {
 			WHERE_CLAUSES="${WHERE_CLAUSES}books.read = ${ESCAPED_READ}"
 		else
 			echo -e "${BOOKED_PARAMETER_INVALID} ${READ}" >&2
+			return "1"
+		fi
+	fi
+
+	if [[ -n "${QUEUE}" ]]; then
+		if [[ -n "${WHERE_CLAUSES}" ]]; then
+			WHERE_CLAUSES="${WHERE_CLAUSES} AND "
+		fi
+
+		local ESCAPED_QUEUE
+
+		if ESCAPED_QUEUE=$(sanitize_boolean "${QUEUE}"); then
+			WHERE_CLAUSES="${WHERE_CLAUSES}books.queue = ${ESCAPED_QUEUE}"
+		else
+			echo -e "${BOOKED_PARAMETER_INVALID} ${QUEUE}" >&2
 			return "1"
 		fi
 	fi
@@ -4310,8 +4391,9 @@ export_database_shell() {
 			CASE WHEN isbn13 IS NOT NULL AND isbn13 != '' THEN ' --isbn13 \"' || isbn13 || '\"' ELSE '' END ||
 			CASE WHEN owned = 1 THEN ' --owned' ELSE '' END ||
 			CASE WHEN read = 1 THEN ' --read' ELSE '' END ||
-			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = books.id ORDER BY t.name) IS NOT NULL
-			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = books.id ORDER BY t.name) || '\"'
+			CASE WHEN queue = 1 THEN ' --queue' ELSE '' END ||
+			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',' ORDER BY t.name) FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = books.id) IS NOT NULL
+			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',' ORDER BY t.name) FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = books.id) || '\"'
 			ELSE '' END
 		FROM books ORDER BY id;"
 
@@ -4321,8 +4403,8 @@ export_database_shell() {
 			CASE WHEN chapter IS NOT NULL AND chapter != '' THEN ' --chapter \"' || REPLACE(chapter, '\"', '\\\"') || '\"' ELSE '' END ||
 			CASE WHEN page IS NOT NULL THEN ' --page \"' || page || '\"' ELSE '' END ||
 			CASE WHEN description IS NOT NULL AND description != '' THEN ' --description \"' || REPLACE(description, '\"', '\\\"') || '\"' ELSE '' END ||
-			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',') FROM bookmark_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.bookmark_id = bookmarks.id ORDER BY t.name) IS NOT NULL
-			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',') FROM bookmark_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.bookmark_id = bookmarks.id ORDER BY t.name) || '\"'
+			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',' ORDER BY t.name) FROM bookmark_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.bookmark_id = bookmarks.id) IS NOT NULL
+			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',' ORDER BY t.name) FROM bookmark_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.bookmark_id = bookmarks.id) || '\"'
 			ELSE '' END
 		FROM bookmarks ORDER BY id;"
 
@@ -4332,8 +4414,8 @@ export_database_shell() {
 			' --author \"' || REPLACE(author, '\"', '\\\"') || '\"' ||
 			CASE WHEN year IS NOT NULL THEN ' --year \"' || year || '\"' ELSE '' END ||
 			CASE WHEN url IS NOT NULL AND url != '' THEN ' --url \"' || REPLACE(url, '\"', '\\\"') || '\"' ELSE '' END ||
-			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',') FROM text_tags tt JOIN tags t ON tt.tag_id = t.id WHERE tt.text_id = texts.id ORDER BY t.name) IS NOT NULL
-			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',') FROM text_tags tt JOIN tags t ON tt.tag_id = t.id WHERE tt.text_id = texts.id ORDER BY t.name) || '\"'
+			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',' ORDER BY t.name) FROM text_tags tt JOIN tags t ON tt.tag_id = t.id WHERE tt.text_id = texts.id) IS NOT NULL
+			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',' ORDER BY t.name) FROM text_tags tt JOIN tags t ON tt.tag_id = t.id WHERE tt.text_id = texts.id) || '\"'
 			ELSE '' END
 		FROM texts ORDER BY id;"
 
@@ -4343,8 +4425,8 @@ export_database_shell() {
 			CASE WHEN section IS NOT NULL AND section != '' THEN ' --section \"' || REPLACE(section, '\"', '\\\"') || '\"' ELSE '' END ||
 			CASE WHEN page IS NOT NULL THEN ' --page \"' || page || '\"' ELSE '' END ||
 			CASE WHEN description IS NOT NULL AND description != '' THEN ' --description \"' || REPLACE(description, '\"', '\\\"') || '\"' ELSE '' END ||
-			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',') FROM text_note_tags tnt JOIN tags t ON tnt.tag_id = t.id WHERE tnt.text_note_id = text_notes.id ORDER BY t.name) IS NOT NULL
-			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',') FROM text_note_tags tnt JOIN tags t ON tnt.tag_id = t.id WHERE tnt.text_note_id = text_notes.id ORDER BY t.name) || '\"'
+			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',' ORDER BY t.name) FROM text_note_tags tnt JOIN tags t ON tnt.tag_id = t.id WHERE tnt.text_note_id = text_notes.id) IS NOT NULL
+			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',' ORDER BY t.name) FROM text_note_tags tnt JOIN tags t ON tnt.tag_id = t.id WHERE tnt.text_note_id = text_notes.id) || '\"'
 			ELSE '' END
 		FROM text_notes ORDER BY id;"
 
@@ -4354,8 +4436,8 @@ export_database_shell() {
 			' --author \"' || REPLACE(author, '\"', '\\\"') || '\"' ||
 			CASE WHEN year IS NOT NULL THEN ' --year \"' || year || '\"' ELSE '' END ||
 			CASE WHEN description IS NOT NULL AND description != '' THEN ' --description \"' || REPLACE(description, '\"', '\\\"') || '\"' ELSE '' END ||
-			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',') FROM quotation_tags qt JOIN tags t ON qt.tag_id = t.id WHERE qt.quotation_id = quotations.id ORDER BY t.name) IS NOT NULL
-			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',') FROM quotation_tags qt JOIN tags t ON qt.tag_id = t.id WHERE qt.quotation_id = quotations.id ORDER BY t.name) || '\"'
+			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',' ORDER BY t.name) FROM quotation_tags qt JOIN tags t ON qt.tag_id = t.id WHERE qt.quotation_id = quotations.id) IS NOT NULL
+			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',' ORDER BY t.name) FROM quotation_tags qt JOIN tags t ON qt.tag_id = t.id WHERE qt.quotation_id = quotations.id) || '\"'
 			ELSE '' END
 		FROM quotations ORDER BY id;"
 
@@ -4364,8 +4446,8 @@ export_database_shell() {
 			' --word \"' || REPLACE(word, '\"', '\\\"') || '\"' ||
 			CASE WHEN language IS NOT NULL AND language != '' THEN ' --language \"' || REPLACE(language, '\"', '\\\"') || '\"' ELSE '' END ||
 			CASE WHEN description IS NOT NULL AND description != '' THEN ' --description \"' || REPLACE(description, '\"', '\\\"') || '\"' ELSE '' END ||
-			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',') FROM word_tags wt JOIN tags t ON wt.tag_id = t.id WHERE wt.word_id = words.id ORDER BY t.name) IS NOT NULL
-			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',') FROM word_tags wt JOIN tags t ON wt.tag_id = t.id WHERE wt.word_id = words.id ORDER BY t.name) || '\"'
+			CASE WHEN (SELECT GROUP_CONCAT(t.name, ',' ORDER BY t.name) FROM word_tags wt JOIN tags t ON wt.tag_id = t.id WHERE wt.word_id = words.id) IS NOT NULL
+			THEN ' --tags \"' || (SELECT GROUP_CONCAT(t.name, ',' ORDER BY t.name) FROM word_tags wt JOIN tags t ON wt.tag_id = t.id WHERE wt.word_id = words.id) || '\"'
 			ELSE '' END
 		FROM words ORDER BY id;"
 	} > "${EXPORT_FILE}"

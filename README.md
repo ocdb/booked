@@ -28,6 +28,7 @@ Environment variables:
         BOOKED_SEPARATOR        Specify the string to use as a row separator on output (default "---")
         BOOKED_OWNED_INDICATOR  Indicator to display for owned books (default "+")
         BOOKED_READ_INDICATOR   Indicator to display for read books (default "+")
+        BOOKED_QUEUE_INDICATOR  Indicator to display for queued books (default "+")
         BOOKED_EMPTY_INDICATOR  Indicator to display for empty fields (default "-")
 ```
 
