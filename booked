@@ -1316,7 +1316,7 @@ plain_output() {
 		((LINE_COUNT++))
 
 		if [[ "${LINE_COUNT}" -eq "1" ]]; then
-			EXPECTED_FIELDS=$(echo "${LINE}" | tr --complement --delete '|' | wc --bytes)
+			EXPECTED_FIELDS=$(echo "${LINE}" | tr --complement --delete "|" | wc --bytes)
 			EXPECTED_FIELDS=$((EXPECTED_FIELDS + 1))
 		fi
 
@@ -1386,7 +1386,7 @@ rainbow_output() {
 		((LINE_COUNT++))
 
 		if [[ "${LINE_COUNT}" -eq "1" ]]; then
-			EXPECTED_FIELDS=$(echo "${LINE}" | tr --complement --delete '|' | wc --bytes)
+			EXPECTED_FIELDS=$(echo "${LINE}" | tr --complement --delete "|" | wc --bytes)
 			EXPECTED_FIELDS=$((EXPECTED_FIELDS + 1))
 		fi
 
@@ -1490,7 +1490,7 @@ sanitize_tags() {
 
 	TAGS_STRING="$(echo "${TAGS_STRING}" | sed "s/^ *//;s/ *$//")"
 
-	TAGS_STRING="$(echo "${TAGS_STRING}" | tr --delete '\\')"
+	TAGS_STRING="$(echo "${TAGS_STRING}" | tr --delete "\\\\")"
 
 	local TAG_LIST=()
 	IFS="," read -ra TAG_ARRAY <<< "${TAGS_STRING}"
